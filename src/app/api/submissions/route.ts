@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 import { createDraftSchema } from '@/modules/submissions/schemas';
 import { bootstrapDemoUserId } from '@/lib/demo-identity';
 import {
@@ -7,6 +8,23 @@ import {
   listReviewQueueForCoordinator,
   listSubmissionsForStudent
 } from '@/modules/submissions/service';
+import { AuthorizationError, NotFoundError } from '@/modules/submissions/errors';
+
+function errorResponse(error: unknown) {
+  if (error instanceof ZodError) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  if (error instanceof AuthorizationError) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 403 });
+  }
+  if (error instanceof NotFoundError) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 404 });
+  }
+  if (error instanceof Error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  return NextResponse.json({ error: 'Unexpected server error' }, { status: 500 });
+}
 
 export async function GET(request: NextRequest) {
   const role = request.nextUrl.searchParams.get('role');
@@ -34,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'unsupported role' }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    return errorResponse(error);
   }
 }
 
@@ -44,6 +62,6 @@ export async function POST(request: NextRequest) {
     const submission = await createDraftSubmission(parsed);
     return NextResponse.json({ submission }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    return errorResponse(error);
   }
 }

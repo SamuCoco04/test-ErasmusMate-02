@@ -75,7 +75,11 @@ export default function StudentSubmissionsPage() {
       body: JSON.stringify({ userId, mobilityRecordId: MOBILITY_ID, procedureDefinitionId: selectedProcedure })
     });
     const data = await response.json();
-    if (!response.ok) setError(data.error || 'Failed to create draft');
+    if (!response.ok) {
+      setError(data.error || 'Failed to create draft');
+      setSaving(false);
+      return;
+    }
     await load();
     setSaving(false);
   }
@@ -88,7 +92,11 @@ export default function StudentSubmissionsPage() {
       body: JSON.stringify({ userId, action, rationale: rationale || undefined })
     });
     const data = await response.json();
-    if (!response.ok) setError(data.error || 'Transition failed');
+    if (!response.ok) {
+      setError(data.error || 'Transition failed');
+      setSaving(false);
+      return;
+    }
     setRationale('');
     await load();
     setSaving(false);

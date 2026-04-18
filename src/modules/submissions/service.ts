@@ -10,9 +10,10 @@ import {
   PlatformRoles,
   ProcedureDefinitionStates
 } from './states';
+import { AuthorizationError, NotFoundError, ValidationError } from './errors';
 
 function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new ValidationError(message);
 }
 
 function isPlatformRole(value: string): value is PlatformRole {
@@ -41,13 +42,24 @@ export async function createDraftSubmission(input: {
   procedureDefinitionId: string;
 }) {
   const user = await prisma.userAccount.findUnique({ where: { id: input.userId } });
-  assert(!!user && isPlatformRole(user.role), 'Invalid user role');
-  assert(user.role === PlatformRoles.STUDENT, 'Only students can create drafts');
+  if (!user) throw new NotFoundError('User not found');
+  if (!isPlatformRole(user.role)) throw new AuthorizationError('Invalid user role');
+  if (user.role !== PlatformRoles.STUDENT) throw new AuthorizationError('Only students can create drafts');
 
   const mobilityRecord = await prisma.mobilityRecord.findUnique({ where: { id: input.mobilityRecordId } });
-  assert(mobilityRecord?.studentId === input.userId, 'Mobility record does not belong to student');
+  if (!mobilityRecord) throw new NotFoundError('Mobility record not found');
+  if (mobilityRecord.studentId !== input.userId) throw new AuthorizationError('Mobility record does not belong to student');
 
-  return prisma.$transaction(async (tx) => {
+  const procedureDefinition = await prisma.procedureDefinition.findUnique({ where: { id: input.procedureDefinitionId } });
+  if (!procedureDefinition) throw new NotFoundError('Procedure definition not found');
+  if (procedureDefinition.institutionId !== mobilityRecord.institutionId) {
+    throw new AuthorizationError('Procedure definition does not belong to the same institution as the mobility record');
+  }
+  if (procedureDefinition.state !== ProcedureDefinitionStates.PUBLISHED) {
+    throw new ValidationError('Procedure definition is not in a publishable state');
+  }
+
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const submission = await tx.documentSubmission.create({
       data: {
         id: crypto.randomUUID(),
@@ -106,11 +118,11 @@ const transitions: Record<TransitionAction, { from: DocumentSubmissionState[]; t
 
 function assertRoleForAction(role: PlatformRole, action: TransitionAction) {
   if (['submit', 'resubmit'].includes(action)) {
-    assert(role === PlatformRoles.STUDENT, 'Only students can submit/resubmit');
+    if (role !== PlatformRoles.STUDENT) throw new AuthorizationError('Only students can submit/resubmit');
   }
 
   if (['start_review', 'approve', 'reject', 'reopen'].includes(action)) {
-    assert(role === PlatformRoles.COORDINATOR, 'Only coordinators can review actions');
+    if (role !== PlatformRoles.COORDINATOR) throw new AuthorizationError('Only coordinators can review actions');
   }
 }
 
@@ -121,7 +133,8 @@ export async function transitionSubmission(input: {
   rationale?: string;
 }) {
   const user = await prisma.userAccount.findUnique({ where: { id: input.userId } });
-  assert(!!user && isPlatformRole(user.role), 'Invalid user role');
+  if (!user) throw new NotFoundError('User not found');
+  if (!isPlatformRole(user.role)) throw new AuthorizationError('Invalid user role');
   assertRoleForAction(user.role, input.action);
 
   const submission = await prisma.documentSubmission.findUnique({
@@ -129,21 +142,25 @@ export async function transitionSubmission(input: {
     include: { mobilityRecord: true }
   });
 
-  assert(!!submission, 'Submission not found');
+  if (!submission) throw new NotFoundError('Submission not found');
   assert(isDocumentSubmissionState(submission.state), 'Invalid submission state');
 
   if (user.role === PlatformRoles.STUDENT) {
-    assert(submission.studentId === user.id, 'Student can only transition own submissions');
+    if (submission.studentId !== user.id) throw new AuthorizationError('Student can only transition own submissions');
   }
 
   if (user.role === PlatformRoles.COORDINATOR) {
-    assert(submission.mobilityRecord.coordinatorId === user.id, 'Coordinator not assigned to this mobility record');
+    if (submission.mobilityRecord.coordinatorId !== user.id) {
+      throw new AuthorizationError('Coordinator not assigned to this mobility record');
+    }
   }
 
   const transition = transitions[input.action];
   assert(transition.from.includes(submission.state), `Invalid transition from ${submission.state} via ${input.action}`);
 
-  const update: Prisma.DocumentSubmissionUpdateInput = {
+  const currentState = submission.state as DocumentSubmissionState;
+
+  const update: Record<string, unknown> = {
     state: transition.to
   };
 
@@ -165,10 +182,18 @@ export async function transitionSubmission(input: {
     update.reopeningRationale = input.rationale?.trim();
   }
 
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.documentSubmission.update({
-      where: { id: submission.id },
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await tx.documentSubmission.updateMany({
+      where: { id: submission.id, state: currentState },
       data: update
+    });
+
+    if (result.count !== 1) {
+      throw new ValidationError('Submission state changed concurrently, please try again');
+    }
+
+    const updated = await tx.documentSubmission.findUniqueOrThrow({
+      where: { id: submission.id }
     });
 
     await tx.submissionEvent.create({

@@ -32,6 +32,7 @@ export default function CoordinatorReviewQueuePage() {
 
   async function load() {
     setLoading(true);
+    setError(null);
     const response = await fetch(`/api/submissions?role=coordinator&userId=${userId}`);
     const data = await response.json();
 
@@ -65,6 +66,8 @@ export default function CoordinatorReviewQueuePage() {
     const data = await response.json();
     if (!response.ok) {
       setError(data.error || 'Action failed');
+      setSaving(false);
+      return;
     }
     setRationale('');
     await load();

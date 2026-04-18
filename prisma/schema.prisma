@@ -78,6 +78,9 @@ model DocumentSubmission {
   procedureDefinition   ProcedureDefinition @relation(fields: [procedureDefinitionId], references: [id])
   student               UserAccount         @relation(fields: [studentId], references: [id])
   events                SubmissionEvent[]
+
+  @@index([studentId])
+  @@index([mobilityRecordId])
 }
 
 model SubmissionEvent {
@@ -91,6 +94,8 @@ model SubmissionEvent {
 
   submission    DocumentSubmission @relation(fields: [submissionId], references: [id])
   actor         UserAccount        @relation(fields: [actorId], references: [id])
+
+  @@index([submissionId])
 }
 
 model AuditRecord {
@@ -106,4 +111,6 @@ model AuditRecord {
   createdAt    DateTime @default(now())
 
   actor        UserAccount @relation(fields: [actorId], references: [id])
+
+  @@index([targetId])
 }
