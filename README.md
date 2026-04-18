@@ -1,42 +1,35 @@
-# ErasmusMate — Phase 1 (Institutional Foundation)
+# ErasmusMate — Phase 2 (Institutional Core MVP)
 
-This phase implements the first backend-backed institutional workflow skeleton (WF-003) with a local full-stack foundation.
+This phase extends the institutional foundation to deliver end-to-end workflow coverage for:
+- mobility dashboard/read model (WF-001)
+- procedure applicability listing (REQ-018)
+- submission + coordinator review flow (WF-003)
+- deadline views/governance read model (WF-006)
+- exception submission and decision flow (WF-005)
+- critical-action audit rendering (REQ-072/REQ-073)
 
 ## Stack
 - Next.js (App Router) + TypeScript + Tailwind
-- shadcn-style UI primitives (local components)
 - Prisma + SQLite
-- Zod + React Hook Form (foundation included)
+- Zod validation at route boundaries
 
-## Architectural choices
-- **Institutional-first route grouping** under `src/app/(institutional)` with separate layouts for Student, Coordinator, and Administrator.
-- **Workflow-driven backend module** (`src/modules/submissions/service.ts`) where state transition guards enforce WF-003 lifecycle paths.
-- **Audit-first transitions**: each critical state change writes `SubmissionEvent` and `AuditRecord` in the same transaction.
+## Institutional routes
+- Student dashboard: `/student/dashboard?userId=student-1`
+- Student submissions: `/student/submissions?userId=student-1`
+- Student deadlines: `/student/deadlines?userId=student-1`
+- Student exceptions: `/student/exceptions?userId=student-1`
+- Coordinator queue: `/coordinator/review-queue?userId=coordinator-1`
+- Coordinator deadlines: `/coordinator/deadlines?userId=coordinator-1`
+- Coordinator exceptions: `/coordinator/exceptions?userId=coordinator-1`
 
-## WF-003 delivered
-- Student: create draft, submit, resubmit (when allowed)
-- Coordinator: start review, approve, reject with rationale, reopen with rationale
-- Persistence and audit trail are backend-backed (Prisma + SQLite)
+## APIs introduced in phase 2
+- `GET /api/mobility-records`
+- `GET /api/procedures/applicable`
+- `GET /api/deadlines`
+- `GET /api/exceptions`
+- `POST /api/exceptions`
+- `PATCH /api/exceptions/:exceptionId/decision`
 
-## Local run
-1. Install dependencies
-   ```bash
-   npm install
-   ```
-2. Apply migration and generate Prisma client
-   ```bash
-   npx prisma migrate dev
-   npx prisma generate
-   ```
-3. Seed deterministic demo data
-   ```bash
-   npm run db:seed
-   ```
-4. Start app
-   ```bash
-   npm run dev
-   ```
-
-## Demo routes
-- Student: `http://localhost:3000/student/submissions?userId=student-1`
-- Coordinator: `http://localhost:3000/coordinator/review-queue?userId=coordinator-1`
+## Notes
+- Social layer is intentionally not started in this phase.
+- Workflow transitions remain backend-enforced and audit-backed.

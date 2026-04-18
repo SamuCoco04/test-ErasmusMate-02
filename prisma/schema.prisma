@@ -19,6 +19,8 @@ model UserAccount {
   coordinatorAssignments MobilityRecord[]    @relation("CoordinatorMobilityRecords")
   documentSubmissions    DocumentSubmission[]
   submissionEvents       SubmissionEvent[]
+  exceptionRequests      ExceptionRequest[]
+  exceptionEvents        ExceptionEvent[]
   auditRecords           AuditRecord[]
 }
 
@@ -39,15 +41,18 @@ model MobilityRecord {
   state           String   // DRAFT | SUBMITTED | IN_REVIEW | APPROVED | ACTIVE | COMPLETED | CLOSED | TERMINATED
   destinationCity String
   mobilityType    String
+  mobilityPhase   String   @default("DURING_MOBILITY") // PRE_DEPARTURE | DURING_MOBILITY | END_OF_MOBILITY
   mobilityStart   DateTime
   mobilityEnd     DateTime
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  student      UserAccount          @relation("StudentMobilityRecords", fields: [studentId], references: [id])
-  coordinator  UserAccount          @relation("CoordinatorMobilityRecords", fields: [coordinatorId], references: [id])
-  institution  Institution          @relation(fields: [institutionId], references: [id])
+  student      UserAccount               @relation("StudentMobilityRecords", fields: [studentId], references: [id])
+  coordinator  UserAccount               @relation("CoordinatorMobilityRecords", fields: [coordinatorId], references: [id])
+  institution  Institution               @relation(fields: [institutionId], references: [id])
   submissions  DocumentSubmission[]
+  deadlines    Deadline[]
+  exceptions   ExceptionRequest[]
 }
 
 model ProcedureDefinition {
@@ -56,10 +61,26 @@ model ProcedureDefinition {
   title         String
   version       Int
   state         String   // DRAFT | PUBLISHED | LOCKED | SUPERSEDED
+  phase         String   @default("DURING_MOBILITY") // PRE_DEPARTURE | DURING_MOBILITY | END_OF_MOBILITY
   createdAt     DateTime @default(now())
 
-  institution  Institution          @relation(fields: [institutionId], references: [id])
-  submissions  DocumentSubmission[]
+  institution        Institution                 @relation(fields: [institutionId], references: [id])
+  submissions        DocumentSubmission[]
+  applicabilityRules ProcedureApplicabilityRule[]
+  deadlines          Deadline[]
+}
+
+model ProcedureApplicabilityRule {
+  id                    String @id
+  procedureDefinitionId String
+  destinationCity       String?
+  mobilityType          String?
+  lifecyclePhase        String?
+  isActive              Boolean @default(true)
+
+  procedureDefinition ProcedureDefinition @relation(fields: [procedureDefinitionId], references: [id])
+
+  @@index([procedureDefinitionId])
 }
 
 model DocumentSubmission {
@@ -97,6 +118,63 @@ model SubmissionEvent {
   actor      UserAccount        @relation(fields: [actorId], references: [id])
 
   @@index([submissionId])
+}
+
+model Deadline {
+  id                    String   @id
+  mobilityRecordId      String
+  procedureDefinitionId String?
+  title                 String
+  dueAt                 DateTime
+  overrideDueAt         DateTime?
+  state                 String   // UPCOMING | OVERRIDDEN | OVERDUE | FULFILLED
+  obligationType        String   // SUBMISSION | REVIEW | RESUBMISSION
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  mobilityRecord      MobilityRecord      @relation(fields: [mobilityRecordId], references: [id])
+  procedureDefinition ProcedureDefinition? @relation(fields: [procedureDefinitionId], references: [id])
+
+  @@index([mobilityRecordId])
+  @@index([dueAt])
+}
+
+model ExceptionRequest {
+  id               String   @id
+  mobilityRecordId String
+  studentId        String
+  scopeType        String   // DEADLINE | DOCUMENT | PROCEDURE
+  scopeRefId       String?
+  reason           String
+  state            String   // SUBMITTED | IN_REVIEW | APPROVED | REJECTED | APPLIED | CLOSED
+  decisionRationale String?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  mobilityRecord MobilityRecord  @relation(fields: [mobilityRecordId], references: [id])
+  student        UserAccount     @relation(fields: [studentId], references: [id])
+  events         ExceptionEvent[]
+
+  @@index([mobilityRecordId])
+  @@index([studentId])
+  @@index([state])
+}
+
+model ExceptionEvent {
+  id          String   @id
+  exceptionId String
+  actorId     String
+  fromState   String?
+  toState     String
+  rationale   String?
+  createdAt   DateTime @default(now())
+
+  exception ExceptionRequest @relation(fields: [exceptionId], references: [id])
+  actor     UserAccount      @relation(fields: [actorId], references: [id])
+
+  @@index([exceptionId])
 }
 
 model AuditRecord {

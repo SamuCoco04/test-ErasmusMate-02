@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function StudentHomePage() {
-  redirect('/student/submissions?userId=student-1');
+  redirect('/student/dashboard?userId=student-1');
 }

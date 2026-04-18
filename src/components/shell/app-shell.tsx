@@ -1,10 +1,18 @@
 import Link from 'next/link';
 
 const studentLinks = [
-  { href: '/student/submissions', label: 'My Submissions' }
+  { href: '/student/dashboard?userId=student-1', label: 'Mobility Dashboard' },
+  { href: '/student/submissions?userId=student-1', label: 'My Submissions' },
+  { href: '/student/deadlines?userId=student-1', label: 'Deadlines' },
+  { href: '/student/exceptions?userId=student-1', label: 'Exception Requests' }
 ];
 
-const coordinatorLinks = [{ href: '/coordinator/review-queue', label: 'Review Queue' }];
+const coordinatorLinks = [
+  { href: '/coordinator/review-queue?userId=coordinator-1', label: 'Review Queue' },
+  { href: '/coordinator/deadlines?userId=coordinator-1', label: 'Deadline View' },
+  { href: '/coordinator/exceptions?userId=coordinator-1', label: 'Exception Decisions' }
+];
+
 const adminLinks = [{ href: '/admin', label: 'Admin Home' }];
 
 export function AppShell({
