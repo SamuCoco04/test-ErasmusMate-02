@@ -31,18 +31,22 @@ export default function CoordinatorReviewQueuePage() {
 
   async function load() {
     setLoading(true);
-    const response = await fetch(`/api/submissions?role=coordinator&userId=${userId}`);
-    const data = await response.json();
+    try {
+      const response = await fetch(`/api/submissions?role=coordinator&userId=${userId}`);
+      const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.error || 'Failed to load queue');
+      if (!response.ok) {
+        setError(data.error || 'Failed to load queue');
+        return;
+      }
+
+      setQueue(data.queue || []);
+      setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null);
+    } catch {
+      setError('Failed to load queue');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setQueue(data.queue || []);
-    setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null);
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -56,18 +60,23 @@ export default function CoordinatorReviewQueuePage() {
     if (!selected) return;
     setSaving(true);
     setError(null);
-    const response = await fetch(`/api/submissions/${selected.id}/transition`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action, rationale: rationale || undefined })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || 'Action failed');
+    try {
+      const response = await fetch(`/api/submissions/${selected.id}/transition`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action, rationale: rationale || undefined })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Action failed');
+      }
+      setRationale('');
+      await load();
+    } catch {
+      setError('Action failed');
+    } finally {
+      setSaving(false);
     }
-    setRationale('');
-    await load();
-    setSaving(false);
   }
 
   return (

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 import { createDraftSchema } from '@/modules/submissions/schemas';
 import {
   createDraftSubmission,
@@ -6,6 +7,7 @@ import {
   listReviewQueueForCoordinator,
   listSubmissionsForStudent
 } from '@/modules/submissions/service';
+import { AppError } from '@/lib/errors';
 
 export async function GET(request: NextRequest) {
   const role = request.nextUrl.searchParams.get('role');
@@ -32,7 +34,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'unsupported role' }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    console.error('[GET /api/submissions]', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -42,6 +51,13 @@ export async function POST(request: NextRequest) {
     const submission = await createDraftSubmission(parsed);
     return NextResponse.json({ submission }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    console.error('[POST /api/submissions]', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

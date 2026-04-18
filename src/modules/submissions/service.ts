@@ -1,15 +1,15 @@
 import {
   AuditActionType,
-  DocumentSubmission,
   DocumentSubmissionState,
   PlatformRole,
   Prisma
 } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { AppError } from '@/lib/errors';
 import { TransitionAction } from './types';
 
-function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+function assert(condition: boolean, message: string, statusCode = 400): asserts condition {
+  if (!condition) throw new AppError(message, statusCode);
 }
 
 function toAuditAction(action: TransitionAction): AuditActionType {
@@ -30,10 +30,17 @@ export async function createDraftSubmission(input: {
   procedureDefinitionId: string;
 }) {
   const user = await prisma.userAccount.findUnique({ where: { id: input.userId } });
-  assert(user?.role === PlatformRole.STUDENT, 'Only students can create drafts');
+  assert(!!user, 'User not found');
+  assert(user.role === PlatformRole.STUDENT, 'Only students can create drafts');
 
   const mobilityRecord = await prisma.mobilityRecord.findUnique({ where: { id: input.mobilityRecordId } });
-  assert(mobilityRecord?.studentId === input.userId, 'Mobility record does not belong to student');
+  assert(!!mobilityRecord, 'Mobility record not found');
+  assert(mobilityRecord.studentId === input.userId, 'Mobility record does not belong to student');
+
+  const procedure = await prisma.procedureDefinition.findUnique({ where: { id: input.procedureDefinitionId } });
+  assert(!!procedure, 'Procedure definition not found');
+  assert(procedure.state === 'PUBLISHED', 'Procedure definition is not published');
+  assert(procedure.institutionId === mobilityRecord.institutionId, 'Procedure definition does not belong to the same institution as the mobility record');
 
   return prisma.$transaction(async (tx) => {
     const submission = await tx.documentSubmission.create({
@@ -109,26 +116,10 @@ export async function transitionSubmission(input: {
   rationale?: string;
 }) {
   const user = await prisma.userAccount.findUnique({ where: { id: input.userId } });
-  assert(user, 'User not found');
+  assert(!!user, 'User not found');
   assertRoleForAction(user.role, input.action);
 
-  const submission = await prisma.documentSubmission.findUnique({
-    where: { id: input.submissionId },
-    include: { mobilityRecord: true }
-  });
-
-  assert(submission, 'Submission not found');
-
-  if (user.role === PlatformRole.STUDENT) {
-    assert(submission.studentId === user.id, 'Student can only transition own submissions');
-  }
-
-  if (user.role === PlatformRole.COORDINATOR) {
-    assert(submission.mobilityRecord.coordinatorId === user.id, 'Coordinator not assigned to this mobility record');
-  }
-
   const transition = transitions[input.action];
-  assert(transition.from.includes(submission.state), `Invalid transition from ${submission.state} via ${input.action}`);
 
   const update: Prisma.DocumentSubmissionUpdateInput = {
     state: transition.to
@@ -153,15 +144,36 @@ export async function transitionSubmission(input: {
   }
 
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.documentSubmission.update({
-      where: { id: submission.id },
+    const submission = await tx.documentSubmission.findUnique({
+      where: { id: input.submissionId },
+      include: { mobilityRecord: true }
+    });
+
+    assert(!!submission, 'Submission not found');
+
+    if (user.role === PlatformRole.STUDENT) {
+      assert(submission.studentId === user.id, 'Student can only transition own submissions', 403);
+    }
+
+    if (user.role === PlatformRole.COORDINATOR) {
+      assert(submission.mobilityRecord.coordinatorId === user.id, 'Coordinator not assigned to this mobility record', 403);
+    }
+
+    assert(transition.from.includes(submission.state), `Invalid transition from ${submission.state} via ${input.action}`);
+
+    const updated = await tx.documentSubmission.updateMany({
+      where: { id: input.submissionId, state: submission.state },
       data: update
     });
+
+    assert(updated.count > 0, 'Submission state changed concurrently, please retry');
+
+    const result = await tx.documentSubmission.findUniqueOrThrow({ where: { id: input.submissionId } });
 
     await tx.submissionEvent.create({
       data: {
         id: crypto.randomUUID(),
-        submissionId: submission.id,
+        submissionId: input.submissionId,
         actorId: user.id,
         fromState: submission.state,
         toState: transition.to,
@@ -175,7 +187,7 @@ export async function transitionSubmission(input: {
         actorId: user.id,
         actionType: toAuditAction(input.action),
         targetType: 'DocumentSubmission',
-        targetId: submission.id,
+        targetId: input.submissionId,
         priorState: submission.state,
         newState: transition.to,
         outcome: 'SUCCESS',
@@ -183,7 +195,7 @@ export async function transitionSubmission(input: {
       }
     });
 
-    return updated;
+    return result;
   });
 }
 

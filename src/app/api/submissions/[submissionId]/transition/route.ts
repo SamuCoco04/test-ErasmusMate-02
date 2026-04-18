@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 import { transitionSchema } from '@/modules/submissions/schemas';
 import { listAuditRecordsForSubmission, transitionSubmission } from '@/modules/submissions/service';
+import { AppError } from '@/lib/errors';
 
 export async function PATCH(
   request: NextRequest,
@@ -19,6 +21,13 @@ export async function PATCH(
 
     return NextResponse.json({ submission, audit });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    console.error('[PATCH /api/submissions/transition]', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

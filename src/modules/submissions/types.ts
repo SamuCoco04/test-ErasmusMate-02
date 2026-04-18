@@ -1,1 +1,10 @@
-export type TransitionAction = 'submit' | 'start_review' | 'approve' | 'reject' | 'reopen' | 'resubmit';
+export const transitionActions = [
+  'submit',
+  'start_review',
+  'approve',
+  'reject',
+  'reopen',
+  'resubmit'
+] as const;
+
+export type TransitionAction = (typeof transitionActions)[number];

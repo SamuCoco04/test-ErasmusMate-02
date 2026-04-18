@@ -62,6 +62,7 @@ model UserAccount {
 
   mobilityRecords MobilityRecord[] @relation("StudentMobilityRecords")
   coordinatorAssignments MobilityRecord[] @relation("CoordinatorMobilityRecords")
+  documentSubmissions    DocumentSubmission[]
   submissionEvents SubmissionEvent[]
   auditRecords AuditRecord[]
 }
