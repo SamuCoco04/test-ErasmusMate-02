@@ -1,10 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import {
-  AuditActionTypes,
-  DocumentSubmissionStates,
-  PlatformRoles,
-  ProcedureDefinitionStates
-} from '../src/modules/submissions/states';
 
 const prisma = new PrismaClient();
 
@@ -26,7 +20,7 @@ async function main() {
       id: 'student-1',
       fullName: 'Maria Rodriguez',
       email: 'maria@example.edu',
-      role: PlatformRoles.STUDENT
+      role: 'STUDENT'
     }
   });
 
@@ -35,7 +29,7 @@ async function main() {
       id: 'coordinator-1',
       fullName: 'Dr. Anna Jensen',
       email: 'anna.jensen@example.edu',
-      role: PlatformRoles.COORDINATOR
+      role: 'COORDINATOR'
     }
   });
 
@@ -44,7 +38,7 @@ async function main() {
       id: 'admin-1',
       fullName: 'System Administrator',
       email: 'admin@example.edu',
-      role: PlatformRoles.ADMINISTRATOR
+      role: 'ADMINISTRATOR'
     }
   });
 
@@ -68,7 +62,7 @@ async function main() {
       institutionId: institution.id,
       title: 'Learning Agreement - Before Mobility',
       version: 1,
-      state: ProcedureDefinitionStates.PUBLISHED
+      state: 'PUBLISHED'
     }
   });
 
@@ -78,7 +72,7 @@ async function main() {
       mobilityRecordId: mobilityRecord.id,
       procedureDefinitionId: procedure.id,
       studentId: student.id,
-      state: DocumentSubmissionStates.DRAFT
+      state: 'DRAFT'
     }
   });
 
@@ -88,7 +82,7 @@ async function main() {
       submissionId: seededSubmission.id,
       actorId: student.id,
       fromState: null,
-      toState: DocumentSubmissionStates.DRAFT,
+      toState: 'DRAFT',
       rationale: 'Initial seeded draft'
     }
   });
@@ -97,11 +91,11 @@ async function main() {
     data: {
       id: 'audit-1',
       actorId: student.id,
-      actionType: AuditActionTypes.SUBMISSION_DRAFT_CREATED,
+      actionType: 'SUBMISSION_DRAFT_CREATED',
       targetType: 'DocumentSubmission',
       targetId: seededSubmission.id,
       priorState: null,
-      newState: DocumentSubmissionStates.DRAFT,
+      newState: 'DRAFT',
       outcome: 'SUCCESS',
       metadataJson: JSON.stringify({ source: 'seed' })
     }

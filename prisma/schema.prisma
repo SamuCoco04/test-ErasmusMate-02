@@ -15,10 +15,11 @@ model UserAccount {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  mobilityRecords         MobilityRecord[]    @relation("StudentMobilityRecords")
-  coordinatorAssignments  MobilityRecord[]    @relation("CoordinatorMobilityRecords")
-  submissionEvents        SubmissionEvent[]
-  auditRecords            AuditRecord[]
+  mobilityRecords        MobilityRecord[]    @relation("StudentMobilityRecords")
+  coordinatorAssignments MobilityRecord[]    @relation("CoordinatorMobilityRecords")
+  documentSubmissions    DocumentSubmission[]
+  submissionEvents       SubmissionEvent[]
+  auditRecords           AuditRecord[]
 }
 
 model Institution {
@@ -31,69 +32,69 @@ model Institution {
 }
 
 model MobilityRecord {
-  id               String   @id
-  studentId        String
-  coordinatorId    String
-  institutionId    String
-  state            String   // DRAFT | SUBMITTED | IN_REVIEW | APPROVED | ACTIVE | COMPLETED | CLOSED | TERMINATED
-  destinationCity  String
-  mobilityType     String
-  mobilityStart    DateTime
-  mobilityEnd      DateTime
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id
+  studentId       String
+  coordinatorId   String
+  institutionId   String
+  state           String   // DRAFT | SUBMITTED | IN_REVIEW | APPROVED | ACTIVE | COMPLETED | CLOSED | TERMINATED
+  destinationCity String
+  mobilityType    String
+  mobilityStart   DateTime
+  mobilityEnd     DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  student          UserAccount          @relation("StudentMobilityRecords", fields: [studentId], references: [id])
-  coordinator      UserAccount          @relation("CoordinatorMobilityRecords", fields: [coordinatorId], references: [id])
-  institution      Institution          @relation(fields: [institutionId], references: [id])
-  submissions      DocumentSubmission[]
+  student      UserAccount          @relation("StudentMobilityRecords", fields: [studentId], references: [id])
+  coordinator  UserAccount          @relation("CoordinatorMobilityRecords", fields: [coordinatorId], references: [id])
+  institution  Institution          @relation(fields: [institutionId], references: [id])
+  submissions  DocumentSubmission[]
 }
 
 model ProcedureDefinition {
-  id              String   @id
-  institutionId   String
-  title           String
-  version         Int
-  state           String   // DRAFT | PUBLISHED | LOCKED | SUPERSEDED
-  createdAt       DateTime @default(now())
+  id            String   @id
+  institutionId String
+  title         String
+  version       Int
+  state         String   // DRAFT | PUBLISHED | LOCKED | SUPERSEDED
+  createdAt     DateTime @default(now())
 
-  institution     Institution          @relation(fields: [institutionId], references: [id])
-  submissions     DocumentSubmission[]
+  institution  Institution          @relation(fields: [institutionId], references: [id])
+  submissions  DocumentSubmission[]
 }
 
 model DocumentSubmission {
-  id                    String   @id
+  id                    String    @id
   mobilityRecordId      String
   procedureDefinitionId String
   studentId             String
-  state                 String   // DRAFT | SUBMITTED | IN_REVIEW | APPROVED | REJECTED | REOPENED | RESUBMITTED | ARCHIVED
+  state                 String    // DRAFT | SUBMITTED | IN_REVIEW | APPROVED | REJECTED | REOPENED | RESUBMITTED | ARCHIVED
   rejectionRationale    String?
   reopeningRationale    String?
   submittedAt           DateTime?
   reviewedAt            DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  mobilityRecord        MobilityRecord      @relation(fields: [mobilityRecordId], references: [id])
-  procedureDefinition   ProcedureDefinition @relation(fields: [procedureDefinitionId], references: [id])
-  student               UserAccount         @relation(fields: [studentId], references: [id])
-  events                SubmissionEvent[]
+  mobilityRecord      MobilityRecord      @relation(fields: [mobilityRecordId], references: [id])
+  procedureDefinition ProcedureDefinition @relation(fields: [procedureDefinitionId], references: [id])
+  student             UserAccount         @relation(fields: [studentId], references: [id])
+  events              SubmissionEvent[]
 
   @@index([studentId])
   @@index([mobilityRecordId])
 }
 
 model SubmissionEvent {
-  id            String   @id
-  submissionId  String
-  actorId       String
-  fromState     String?
-  toState       String
-  rationale     String?
-  createdAt     DateTime @default(now())
+  id           String   @id
+  submissionId String
+  actorId      String
+  fromState    String?
+  toState      String
+  rationale    String?
+  createdAt    DateTime @default(now())
 
-  submission    DocumentSubmission @relation(fields: [submissionId], references: [id])
-  actor         UserAccount        @relation(fields: [actorId], references: [id])
+  submission DocumentSubmission @relation(fields: [submissionId], references: [id])
+  actor      UserAccount        @relation(fields: [actorId], references: [id])
 
   @@index([submissionId])
 }
@@ -110,7 +111,7 @@ model AuditRecord {
   metadataJson String?
   createdAt    DateTime @default(now())
 
-  actor        UserAccount @relation(fields: [actorId], references: [id])
+  actor UserAccount @relation(fields: [actorId], references: [id])
 
   @@index([targetId])
 }

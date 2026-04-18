@@ -38,5 +38,5 @@ This phase implements the first backend-backed institutional workflow skeleton (
    ```
 
 ## Demo routes
-- Student: `http://localhost:3000/student/submissions` (defaults to `student-1`)
-- Coordinator: `http://localhost:3000/coordinator/review-queue` (defaults to `coordinator-1`)
+- Student: `http://localhost:3000/student/submissions?userId=student-1`
+- Coordinator: `http://localhost:3000/coordinator/review-queue?userId=coordinator-1`

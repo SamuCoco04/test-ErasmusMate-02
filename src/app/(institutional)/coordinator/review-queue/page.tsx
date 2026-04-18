@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { LoadingState } from '@/components/states/loading-state';
-import { bootstrapDemoUserId } from '@/lib/demo-identity';
 
 type QueueItem = {
   id: string;
@@ -21,7 +20,7 @@ type QueueItem = {
 
 export default function CoordinatorReviewQueuePage() {
   const params = useSearchParams();
-  const userId = bootstrapDemoUserId('coordinator', params.get('userId'));
+  const userId = params.get('userId') || 'coordinator-1';
 
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,19 +31,22 @@ export default function CoordinatorReviewQueuePage() {
 
   async function load() {
     setLoading(true);
-    setError(null);
-    const response = await fetch(`/api/submissions?role=coordinator&userId=${userId}`);
-    const data = await response.json();
+    try {
+      const response = await fetch(`/api/submissions?role=coordinator&userId=${userId}`);
+      const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.error || 'Failed to load queue');
+      if (!response.ok) {
+        setError(data.error || 'Failed to load queue');
+        return;
+      }
+
+      setQueue(data.queue || []);
+      setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null);
+    } catch {
+      setError('Failed to load queue');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setQueue(data.queue || []);
-    setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null);
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -58,20 +60,23 @@ export default function CoordinatorReviewQueuePage() {
     if (!selected) return;
     setSaving(true);
     setError(null);
-    const response = await fetch(`/api/submissions/${selected.id}/transition`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action, rationale: rationale || undefined })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || 'Action failed');
+    try {
+      const response = await fetch(`/api/submissions/${selected.id}/transition`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action, rationale: rationale || undefined })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Action failed');
+      }
+      setRationale('');
+      await load();
+    } catch {
+      setError('Action failed');
+    } finally {
       setSaving(false);
-      return;
     }
-    setRationale('');
-    await load();
-    setSaving(false);
   }
 
   return (

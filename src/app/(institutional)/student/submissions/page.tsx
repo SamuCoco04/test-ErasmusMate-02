@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { LoadingState } from '@/components/states/loading-state';
-import { bootstrapDemoUserId } from '@/lib/demo-identity';
 
 type Submission = {
   id: string;
@@ -27,7 +26,7 @@ const MOBILITY_ID = 'mobility-1';
 
 export default function StudentSubmissionsPage() {
   const params = useSearchParams();
-  const userId = bootstrapDemoUserId('student', params.get('userId'));
+  const userId = params.get('userId') || 'student-1';
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [procedures, setProcedures] = useState<Procedure[]>([]);
@@ -40,20 +39,24 @@ export default function StudentSubmissionsPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    const response = await fetch(`/api/submissions?role=student&userId=${userId}&mobilityRecordId=${MOBILITY_ID}`);
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || 'Failed to load submissions');
-      setLoading(false);
-      return;
-    }
+    try {
+      const response = await fetch(`/api/submissions?role=student&userId=${userId}&mobilityRecordId=${MOBILITY_ID}`);
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to load submissions');
+        return;
+      }
 
-    setSubmissions(data.submissions || []);
-    setProcedures(data.procedures || []);
-    if (!selectedProcedure && data.procedures?.[0]) {
-      setSelectedProcedure(data.procedures[0].id);
+      setSubmissions(data.submissions || []);
+      setProcedures(data.procedures || []);
+      if (!selectedProcedure && data.procedures?.[0]) {
+        setSelectedProcedure(data.procedures[0].id);
+      }
+    } catch {
+      setError('Failed to load submissions');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -69,37 +72,39 @@ export default function StudentSubmissionsPage() {
   async function createDraft() {
     if (!selectedProcedure) return;
     setSaving(true);
-    const response = await fetch('/api/submissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, mobilityRecordId: MOBILITY_ID, procedureDefinitionId: selectedProcedure })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || 'Failed to create draft');
+    try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, mobilityRecordId: MOBILITY_ID, procedureDefinitionId: selectedProcedure })
+      });
+      const data = await response.json();
+      if (!response.ok) setError(data.error || 'Failed to create draft');
+      await load();
+    } catch {
+      setError('Failed to create draft');
+    } finally {
       setSaving(false);
-      return;
     }
-    await load();
-    setSaving(false);
   }
 
   async function transition(submissionId: string, action: 'submit' | 'resubmit') {
     setSaving(true);
-    const response = await fetch(`/api/submissions/${submissionId}/transition`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action, rationale: rationale || undefined })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || 'Transition failed');
+    try {
+      const response = await fetch(`/api/submissions/${submissionId}/transition`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action, rationale: rationale || undefined })
+      });
+      const data = await response.json();
+      if (!response.ok) setError(data.error || 'Transition failed');
+      setRationale('');
+      await load();
+    } catch {
+      setError('Transition failed');
+    } finally {
       setSaving(false);
-      return;
     }
-    setRationale('');
-    await load();
-    setSaving(false);
   }
 
   return (

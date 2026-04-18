@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { transitionActions } from './types';
 
 export const createDraftSchema = z.object({
   userId: z.string().min(1),
@@ -8,6 +9,6 @@ export const createDraftSchema = z.object({
 
 export const transitionSchema = z.object({
   userId: z.string().min(1),
-  action: z.enum(['submit', 'start_review', 'approve', 'reject', 'reopen', 'resubmit']),
+  action: z.enum(transitionActions),
   rationale: z.string().max(500).optional()
 });

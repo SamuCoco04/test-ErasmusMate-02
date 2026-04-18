@@ -2,30 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { transitionSchema } from '@/modules/submissions/schemas';
 import { listAuditRecordsForSubmission, transitionSubmission } from '@/modules/submissions/service';
-import { AuthorizationError, NotFoundError } from '@/modules/submissions/errors';
-
-function errorResponse(error: unknown) {
-  if (error instanceof ZodError) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-  if (error instanceof AuthorizationError) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 403 });
-  }
-  if (error instanceof NotFoundError) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 404 });
-  }
-  if (error instanceof Error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-  return NextResponse.json({ error: 'Unexpected server error' }, { status: 500 });
-}
+import { AppError } from '@/lib/errors';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { submissionId: string } }
 ) {
+  let body: unknown;
   try {
-    const payload = transitionSchema.parse(await request.json());
+    body = await request.json();
+    const payload = transitionSchema.parse(body);
     const submission = await transitionSubmission({
       submissionId: params.submissionId,
       userId: payload.userId,
@@ -37,6 +23,13 @@ export async function PATCH(
 
     return NextResponse.json({ submission, audit });
   } catch (error) {
-    return errorResponse(error);
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    console.error(`[PATCH /api/submissions/${params.submissionId}/transition]`, body, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
