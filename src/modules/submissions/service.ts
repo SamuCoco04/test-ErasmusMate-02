@@ -166,6 +166,8 @@ export async function transitionSubmission(input: {
       data: update
     });
 
+    // Optimistic concurrency check: if count is 0, another concurrent request
+    // already transitioned the submission away from the expected state.
     assert(updated.count > 0, 'Submission state changed concurrently, please retry');
 
     const result = await tx.documentSubmission.findUniqueOrThrow({ where: { id: input.submissionId } });

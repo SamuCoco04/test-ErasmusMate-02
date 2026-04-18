@@ -8,8 +8,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { submissionId: string } }
 ) {
+  let body: unknown;
   try {
-    const payload = transitionSchema.parse(await request.json());
+    body = await request.json();
+    const payload = transitionSchema.parse(body);
     const submission = await transitionSubmission({
       submissionId: params.submissionId,
       userId: payload.userId,
@@ -27,7 +29,7 @@ export async function PATCH(
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    console.error('[PATCH /api/submissions/transition]', error);
+    console.error(`[PATCH /api/submissions/${params.submissionId}/transition]`, body, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

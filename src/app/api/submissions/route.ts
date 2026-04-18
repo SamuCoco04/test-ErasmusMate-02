@@ -40,14 +40,16 @@ export async function GET(request: NextRequest) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    console.error('[GET /api/submissions]', error);
+    console.error(`[GET /api/submissions] role=${role} userId=${userId}`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  let body: unknown;
   try {
-    const parsed = createDraftSchema.parse(await request.json());
+    body = await request.json();
+    const parsed = createDraftSchema.parse(body);
     const submission = await createDraftSubmission(parsed);
     return NextResponse.json({ submission }, { status: 201 });
   } catch (error) {
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    console.error('[POST /api/submissions]', error);
+    console.error('[POST /api/submissions]', body, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
