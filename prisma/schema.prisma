@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum PlatformRole {
+  STUDENT
+  COORDINATOR
+  ADMINISTRATOR
+}
+
+enum MobilityRecordState {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  ACTIVE
+  COMPLETED
+  CLOSED
+  TERMINATED
+}
+
+enum ProcedureDefinitionState {
+  DRAFT
+  PUBLISHED
+  LOCKED
+  SUPERSEDED
+}
+
+enum DocumentSubmissionState {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  REOPENED
+  RESUBMITTED
+  ARCHIVED
+}
+
+enum AuditActionType {
+  SUBMISSION_DRAFT_CREATED
+  SUBMISSION_SUBMITTED
+  SUBMISSION_IN_REVIEW
+  SUBMISSION_APPROVED
+  SUBMISSION_REJECTED
+  SUBMISSION_REOPENED
+  SUBMISSION_RESUBMITTED
+}
+
+model UserAccount {
+  id         String         @id
+  fullName   String
+  email      String         @unique
+  role       PlatformRole
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  mobilityRecords MobilityRecord[] @relation("StudentMobilityRecords")
+  coordinatorAssignments MobilityRecord[] @relation("CoordinatorMobilityRecords")
+  documentSubmissions    DocumentSubmission[]
+  submissionEvents SubmissionEvent[]
+  auditRecords AuditRecord[]
+}
+
+model Institution {
+  id         String   @id
+  name       String
+  createdAt  DateTime @default(now())
+
+  mobilityRecords MobilityRecord[]
+  procedures ProcedureDefinition[]
+}
+
+model MobilityRecord {
+  id               String            @id
+  studentId        String
+  coordinatorId    String
+  institutionId    String
+  state            MobilityRecordState
+  destinationCity  String
+  mobilityType     String
+  mobilityStart    DateTime
+  mobilityEnd      DateTime
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  student          UserAccount       @relation("StudentMobilityRecords", fields: [studentId], references: [id])
+  coordinator      UserAccount       @relation("CoordinatorMobilityRecords", fields: [coordinatorId], references: [id])
+  institution      Institution       @relation(fields: [institutionId], references: [id])
+  submissions      DocumentSubmission[]
+}
+
+model ProcedureDefinition {
+  id              String                    @id
+  institutionId   String
+  title           String
+  version         Int
+  state           ProcedureDefinitionState
+  createdAt       DateTime                  @default(now())
+
+  institution     Institution               @relation(fields: [institutionId], references: [id])
+  submissions     DocumentSubmission[]
+}
+
+model DocumentSubmission {
+  id                   String                  @id
+  mobilityRecordId     String
+  procedureDefinitionId String
+  studentId            String
+  state                DocumentSubmissionState
+  rejectionRationale   String?
+  reopeningRationale   String?
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  mobilityRecord       MobilityRecord          @relation(fields: [mobilityRecordId], references: [id])
+  procedureDefinition  ProcedureDefinition     @relation(fields: [procedureDefinitionId], references: [id])
+  student              UserAccount             @relation(fields: [studentId], references: [id])
+  events               SubmissionEvent[]
+}
+
+model SubmissionEvent {
+  id            String                  @id
+  submissionId  String
+  actorId       String
+  fromState     DocumentSubmissionState?
+  toState       DocumentSubmissionState
+  rationale     String?
+  createdAt     DateTime                @default(now())
+
+  submission    DocumentSubmission      @relation(fields: [submissionId], references: [id])
+  actor         UserAccount             @relation(fields: [actorId], references: [id])
+}
+
+model AuditRecord {
+  id              String          @id
+  actorId         String
+  actionType      AuditActionType
+  targetType      String
+  targetId        String
+  priorState      String?
+  newState        String?
+  outcome         String
+  metadataJson    String?
+  createdAt       DateTime        @default(now())
+
+  actor           UserAccount     @relation(fields: [actorId], references: [id])
+}
