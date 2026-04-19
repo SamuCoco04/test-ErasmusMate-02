@@ -136,7 +136,7 @@ function assertRoleForAction(role: PlatformRoleValue, action: TransitionAction) 
 }
 
 function isDeadlineBlocked(deadline: { dueAt: Date; overrideDueAt: Date | null; state: string }) {
-  if (deadline.state === 'FULFILLED' || deadline.state === 'OVERRIDDEN') {
+  if (deadline.state === 'FULFILLED') {
     return false;
   }
 
@@ -305,8 +305,10 @@ export async function listProceduresForMobilityRecord(mobilityRecordId: string) 
         some: {
           isActive: true,
           OR: [{ destinationCity: null }, { destinationCity: mobilityRecord.destinationCity }],
-          AND: [{ OR: [{ mobilityType: null }, { mobilityType: mobilityRecord.mobilityType }] }],
-          lifecyclePhase: mobilityRecord.mobilityPhase
+          AND: [
+            { OR: [{ mobilityType: null }, { mobilityType: mobilityRecord.mobilityType }] },
+            { OR: [{ lifecyclePhase: null }, { lifecyclePhase: mobilityRecord.mobilityPhase }] }
+          ]
         }
       }
     },

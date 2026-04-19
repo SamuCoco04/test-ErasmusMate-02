@@ -14,6 +14,8 @@ const ExceptionRequestState = {
   CLOSED: 'CLOSED'
 } as const;
 
+const DEADLINE_OVERRIDE_EXTENSION_DAYS = 3;
+
 type ExceptionStateValue = (typeof ExceptionRequestState)[keyof typeof ExceptionRequestState];
 
 function assert(condition: boolean, message: string, statusCode = 400): asserts condition {
@@ -56,7 +58,8 @@ export async function createExceptionRequest(input: {
   assert(!!mobilityRecord, 'Mobility record not found', 404);
   assert(mobilityRecord.studentId === input.userId, 'Mobility record does not belong to student', 403);
 
-  if (input.scopeType === 'DEADLINE' && input.scopeRefId) {
+  if (input.scopeType === 'DEADLINE') {
+    assert(!!input.scopeRefId, 'scopeRefId is required for DEADLINE scope exceptions');
     const deadline = await prisma.deadline.findUnique({ where: { id: input.scopeRefId } });
     assert(!!deadline, 'Deadline not found for exception scope', 404);
     assert(deadline.mobilityRecordId === input.mobilityRecordId, 'Deadline does not belong to mobility record', 400);
@@ -145,13 +148,17 @@ export async function transitionExceptionRequest(input: {
       update.decisionRationale = trimmedRationale ?? null;
     }
 
-    if (input.action === 'apply' && exception.scopeType === 'DEADLINE' && exception.scopeRefId) {
-      const deadline = await tx.deadline.findUnique({ where: { id: exception.scopeRefId } });
+    if (input.action === 'apply') {
+      assert(
+        exception.scopeType === 'DEADLINE' && !!exception.scopeRefId,
+        'apply is only supported for DEADLINE-scoped exceptions with a referenced deadline'
+      );
+      const deadline = await tx.deadline.findUnique({ where: { id: exception.scopeRefId! } });
       assert(!!deadline, 'Referenced deadline not found', 404);
 
       const baseDate = deadline.overrideDueAt ?? deadline.dueAt;
       const override = new Date(baseDate);
-      override.setDate(override.getDate() + 3);
+      override.setDate(override.getDate() + DEADLINE_OVERRIDE_EXTENSION_DAYS);
 
       await tx.deadline.update({
         where: { id: deadline.id },

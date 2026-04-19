@@ -22,14 +22,19 @@ export default function StudentExceptionsPage() {
   const [saving, setSaving] = useState(false);
 
   async function load() {
-    const response = await fetch(`/api/exceptions?role=student&userId=${userId}`);
-    const payload = await response.json();
-    if (!response.ok) {
-      setError(payload.error || 'Failed to load exceptions');
-      return;
-    }
+    try {
+      const response = await fetch(`/api/exceptions?role=student&userId=${userId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.error || 'Failed to load exceptions');
+        return;
+      }
 
-    setExceptions(payload.exceptions || []);
+      setExceptions(payload.exceptions || []);
+      setError(null);
+    } catch {
+      setError('Failed to load exceptions');
+    }
   }
 
   useEffect(() => {

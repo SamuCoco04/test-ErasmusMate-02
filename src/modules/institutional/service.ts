@@ -7,10 +7,10 @@ function getEffectiveDeadlineState(deadline: {
   state: string;
 }) {
   if (deadline.state === 'FULFILLED') return 'FULFILLED';
-  if (deadline.overrideDueAt) return 'OVERRIDDEN';
 
+  const effectiveDueAt = deadline.overrideDueAt ?? deadline.dueAt;
   const now = new Date();
-  return now > deadline.dueAt ? 'OVERDUE' : 'UPCOMING';
+  return now > effectiveDueAt ? 'OVERDUE' : 'UPCOMING';
 }
 
 export async function getStudentInstitutionalDashboard(userId: string, mobilityRecordId: string) {
@@ -45,7 +45,7 @@ export async function getStudentInstitutionalDashboard(userId: string, mobilityR
       pendingSubmissions: submissions.filter((s) => ['DRAFT', 'REJECTED', 'REOPENED'].includes(s.state)).length,
       exceptionsTotal: exceptions.length,
       exceptionsPending: exceptions.filter((e) => ['SUBMITTED', 'IN_REVIEW', 'APPROVED'].includes(e.state)).length,
-      upcomingDeadlines: deadlines.filter((d) => getEffectiveDeadlineState(d) !== 'FULFILLED').length
+      upcomingDeadlines: deadlines.filter((d) => getEffectiveDeadlineState(d) === 'UPCOMING').length
     },
     deadlines: deadlines.map((d) => ({ ...d, effectiveState: getEffectiveDeadlineState(d) })),
     procedures
@@ -66,8 +66,10 @@ export async function listApplicableProceduresForMobilityRecord(mobilityRecordId
         some: {
           isActive: true,
           OR: [{ destinationCity: null }, { destinationCity: mobilityRecord.destinationCity }],
-          AND: [{ OR: [{ mobilityType: null }, { mobilityType: mobilityRecord.mobilityType }] }],
-          lifecyclePhase: mobilityRecord.mobilityPhase
+          AND: [
+            { OR: [{ mobilityType: null }, { mobilityType: mobilityRecord.mobilityType }] },
+            { OR: [{ lifecyclePhase: null }, { lifecyclePhase: mobilityRecord.mobilityPhase }] }
+          ]
         }
       }
     },
@@ -134,15 +136,12 @@ export async function listAuditTrailForMobility(mobilityRecordId: string) {
     })
   ]);
 
-  const targetIds = [mobilityRecordId, ...submissionIds.map((s) => s.id), ...exceptionIds.map((e) => e.id)];
-
   return prisma.auditRecord.findMany({
     where: {
       OR: [
         { targetType: 'MobilityRecord', targetId: mobilityRecordId },
         { targetType: 'DocumentSubmission', targetId: { in: submissionIds.map((s) => s.id) } },
-        { targetType: 'ExceptionRequest', targetId: { in: exceptionIds.map((e) => e.id) } },
-        { targetId: { in: targetIds } }
+        { targetType: 'ExceptionRequest', targetId: { in: exceptionIds.map((e) => e.id) } }
       ]
     },
     include: {

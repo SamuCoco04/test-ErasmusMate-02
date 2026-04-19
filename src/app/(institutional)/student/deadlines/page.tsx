@@ -28,6 +28,7 @@ export default function StudentDeadlinesPage() {
         }
 
         setDeadlines(payload.deadlines || []);
+        setError(null);
       } catch {
         setError('Failed to load deadlines');
       } finally {
