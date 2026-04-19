@@ -3,14 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/errors';
 import { TransitionAction } from './types';
 
-// State constants
 const PlatformRole = { STUDENT: 'STUDENT', COORDINATOR: 'COORDINATOR', ADMINISTRATOR: 'ADMINISTRATOR' } as const;
 type PlatformRoleValue = typeof PlatformRole[keyof typeof PlatformRole];
 
 const DocumentSubmissionState = {
-  DRAFT: 'DRAFT', SUBMITTED: 'SUBMITTED', IN_REVIEW: 'IN_REVIEW',
-  APPROVED: 'APPROVED', REJECTED: 'REJECTED', REOPENED: 'REOPENED',
-  RESUBMITTED: 'RESUBMITTED', ARCHIVED: 'ARCHIVED'
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+  IN_REVIEW: 'IN_REVIEW',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  REOPENED: 'REOPENED',
+  RESUBMITTED: 'RESUBMITTED',
+  ARCHIVED: 'ARCHIVED'
 } as const;
 type DocumentSubmissionStateValue = typeof DocumentSubmissionState[keyof typeof DocumentSubmissionState];
 
@@ -43,10 +47,26 @@ export async function createDraftSubmission(input: {
   assert(!!mobilityRecord, 'Mobility record not found', 404);
   assert(mobilityRecord.studentId === input.userId, 'Mobility record does not belong to student', 403);
 
-  const procedure = await prisma.procedureDefinition.findUnique({ where: { id: input.procedureDefinitionId } });
+  const procedure = await prisma.procedureDefinition.findUnique({
+    where: { id: input.procedureDefinitionId },
+    include: { applicabilityRules: true }
+  });
   assert(!!procedure, 'Procedure definition not found', 404);
   assert(procedure.state === 'PUBLISHED', 'Procedure definition is not published', 400);
-  assert(procedure.institutionId === mobilityRecord.institutionId, 'Procedure definition does not belong to the same institution as the mobility record', 403);
+  assert(
+    procedure.institutionId === mobilityRecord.institutionId,
+    'Procedure definition does not belong to the same institution as the mobility record',
+    403
+  );
+
+  const isApplicable = procedure.applicabilityRules.some(
+    (rule) =>
+      rule.isActive &&
+      (!rule.destinationCity || rule.destinationCity === mobilityRecord.destinationCity) &&
+      (!rule.mobilityType || rule.mobilityType === mobilityRecord.mobilityType) &&
+      (!rule.lifecyclePhase || rule.lifecyclePhase === mobilityRecord.mobilityPhase)
+  );
+  assert(isApplicable, 'Procedure is not applicable for this mobility record', 400);
 
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const submission = await tx.documentSubmission.create({
@@ -115,6 +135,15 @@ function assertRoleForAction(role: PlatformRoleValue, action: TransitionAction) 
   }
 }
 
+function isDeadlineBlocked(deadline: { dueAt: Date; overrideDueAt: Date | null; state: string }) {
+  if (deadline.state === 'FULFILLED') {
+    return false;
+  }
+
+  const effectiveDueAt = deadline.overrideDueAt ?? deadline.dueAt;
+  return new Date() > effectiveDueAt;
+}
+
 export async function transitionSubmission(input: {
   submissionId: string;
   userId: string;
@@ -126,6 +155,7 @@ export async function transitionSubmission(input: {
   assertRoleForAction(user.role as PlatformRoleValue, input.action);
 
   const transition = transitions[input.action];
+  const trimmedRationale = input.rationale?.trim();
 
   const update: Record<string, unknown> = {
     state: transition.to
@@ -140,13 +170,13 @@ export async function transitionSubmission(input: {
   }
 
   if (input.action === 'reject') {
-    assert(!!input.rationale?.trim(), 'Rejection requires rationale');
-    update.rejectionRationale = input.rationale?.trim();
+    assert(!!trimmedRationale, 'Rejection requires rationale');
+    update.rejectionRationale = trimmedRationale;
   }
 
   if (input.action === 'reopen') {
-    assert(!!input.rationale?.trim(), 'Reopening requires rationale');
-    update.reopeningRationale = input.rationale?.trim();
+    assert(!!trimmedRationale, 'Reopening requires rationale');
+    update.reopeningRationale = trimmedRationale;
   }
 
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -165,19 +195,45 @@ export async function transitionSubmission(input: {
       assert(submission.mobilityRecord.coordinatorId === user.id, 'Coordinator not assigned to this mobility record', 403);
     }
 
-    assert(transition.from.includes(submission.state as DocumentSubmissionStateValue), `Invalid transition from ${submission.state} via ${input.action}`);
+    if (input.action === 'submit' || input.action === 'resubmit') {
+      const deadline = await tx.deadline.findFirst({
+        where: {
+          mobilityRecordId: submission.mobilityRecordId,
+          procedureDefinitionId: submission.procedureDefinitionId,
+          obligationType: { in: ['SUBMISSION', 'RESUBMISSION'] }
+        },
+        orderBy: { dueAt: 'asc' }
+      });
 
-    // Compare-and-swap: only update if the state hasn't changed since we read it
+      if (deadline) {
+        assert(!isDeadlineBlocked(deadline), 'Submission deadline has passed without an approved override', 400);
+      }
+    }
+
+    assert(
+      transition.from.includes(submission.state as DocumentSubmissionStateValue),
+      `Invalid transition from ${submission.state} via ${input.action}`
+    );
+
     const updated = await tx.documentSubmission.updateMany({
       where: { id: input.submissionId, state: submission.state },
       data: update
     });
 
-    // Optimistic concurrency check: if count is 0, another concurrent request
-    // already transitioned the submission away from the expected state.
     assert(updated.count > 0, 'Submission state changed concurrently, please retry');
 
     const result = await tx.documentSubmission.findUniqueOrThrow({ where: { id: input.submissionId } });
+
+    if (input.action === 'approve') {
+      await tx.deadline.updateMany({
+        where: {
+          mobilityRecordId: submission.mobilityRecordId,
+          procedureDefinitionId: submission.procedureDefinitionId,
+          obligationType: { in: ['SUBMISSION', 'RESUBMISSION'] }
+        },
+        data: { state: 'FULFILLED' }
+      });
+    }
 
     await tx.submissionEvent.create({
       data: {
@@ -186,7 +242,7 @@ export async function transitionSubmission(input: {
         actorId: user.id,
         fromState: submission.state,
         toState: transition.to,
-        rationale: input.rationale?.trim() || null
+        rationale: trimmedRationale || null
       }
     });
 
@@ -200,7 +256,7 @@ export async function transitionSubmission(input: {
         priorState: submission.state,
         newState: transition.to,
         outcome: 'SUCCESS',
-        metadataJson: input.rationale ? JSON.stringify({ rationale: input.rationale }) : null
+        metadataJson: trimmedRationale ? JSON.stringify({ rationale: trimmedRationale }) : null
       }
     });
 
@@ -233,7 +289,7 @@ export async function listReviewQueueForCoordinator(coordinatorId: string) {
       mobilityRecord: true,
       events: { orderBy: { createdAt: 'desc' }, take: 5 }
     },
-    orderBy: { updatedAt: 'asc' }
+    orderBy: [{ updatedAt: 'asc' }]
   });
 }
 
@@ -244,7 +300,17 @@ export async function listProceduresForMobilityRecord(mobilityRecordId: string) 
   return prisma.procedureDefinition.findMany({
     where: {
       institutionId: mobilityRecord.institutionId,
-      state: 'PUBLISHED'
+      state: 'PUBLISHED',
+      applicabilityRules: {
+        some: {
+          isActive: true,
+          OR: [{ destinationCity: null }, { destinationCity: mobilityRecord.destinationCity }],
+          AND: [
+            { OR: [{ mobilityType: null }, { mobilityType: mobilityRecord.mobilityType }] },
+            { OR: [{ lifecyclePhase: null }, { lifecyclePhase: mobilityRecord.mobilityPhase }] }
+          ]
+        }
+      }
     },
     orderBy: { title: 'asc' }
   });
@@ -256,6 +322,7 @@ export async function listAuditRecordsForSubmission(submissionId: string) {
       targetType: 'DocumentSubmission',
       targetId: submissionId
     },
+    include: { actor: true },
     orderBy: { createdAt: 'desc' },
     take: 20
   });

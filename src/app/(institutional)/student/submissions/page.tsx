@@ -35,6 +35,7 @@ export default function StudentSubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [audit, setAudit] = useState<{ id: string; actionType: string; createdAt: string }[]>([]);
 
   async function load() {
     setLoading(true);
@@ -98,6 +99,7 @@ export default function StudentSubmissionsPage() {
       });
       const data = await response.json();
       if (!response.ok) setError(data.error || 'Transition failed');
+      setAudit(data.audit || []);
       setRationale('');
       await load();
     } catch {
@@ -145,6 +147,21 @@ export default function StudentSubmissionsPage() {
       {error ? <ErrorState message={error} /> : null}
 
       {!loading && !submissions.length ? <EmptyState title="No submissions yet" hint="Create your first draft above." /> : null}
+
+      {audit.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Latest audit events</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            {audit.map((item) => (
+              <p key={item.id}>
+                {new Date(item.createdAt).toLocaleString()} · {item.actionType}
+              </p>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="space-y-3">
         {submissions.map((submission) => (
