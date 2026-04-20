@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { createDraftSchema } from '@/modules/submissions/schemas';
 import {
   createDraftSubmission,
+  listSubmissionsForCoordinator,
   listProceduresForMobilityRecord,
   listReviewQueueForCoordinator,
   listSubmissionsForStudent
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
   const role = request.nextUrl.searchParams.get('role');
   const userId = request.nextUrl.searchParams.get('userId');
   const mobilityRecordId = request.nextUrl.searchParams.get('mobilityRecordId');
+  const scope = request.nextUrl.searchParams.get('scope');
+  const states = request.nextUrl.searchParams.get('states');
+  const search = request.nextUrl.searchParams.get('search');
 
   try {
     if (!role || !userId) {
@@ -28,6 +32,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (role === 'coordinator') {
+      if (scope === 'history') {
+        const includeStates = states
+          ? states
+              .split(',')
+              .map((state) => state.trim())
+              .filter(Boolean)
+          : undefined;
+
+        const submissions = await listSubmissionsForCoordinator(userId, { includeStates, search: search ?? undefined });
+        return NextResponse.json({ submissions });
+      }
+
       const queue = await listReviewQueueForCoordinator(userId);
       return NextResponse.json({ queue });
     }

@@ -144,6 +144,11 @@ function isDeadlineBlocked(deadline: { dueAt: Date; overrideDueAt: Date | null; 
   return new Date() > effectiveDueAt;
 }
 
+function computeDeadlineState(deadline: { dueAt: Date; overrideDueAt: Date | null }) {
+  const effectiveDueAt = deadline.overrideDueAt ?? deadline.dueAt;
+  return new Date() > effectiveDueAt ? 'OVERDUE' : 'UPCOMING';
+}
+
 export async function transitionSubmission(input: {
   submissionId: string;
   userId: string;
@@ -172,11 +177,23 @@ export async function transitionSubmission(input: {
   if (input.action === 'reject') {
     assert(!!trimmedRationale, 'Rejection requires rationale');
     update.rejectionRationale = trimmedRationale;
+    update.reopeningRationale = null;
   }
 
   if (input.action === 'reopen') {
     assert(!!trimmedRationale, 'Reopening requires rationale');
     update.reopeningRationale = trimmedRationale;
+    update.rejectionRationale = null;
+  }
+
+  if (input.action === 'approve') {
+    update.rejectionRationale = null;
+    update.reopeningRationale = null;
+  }
+
+  if (input.action === 'start_review') {
+    update.rejectionRationale = null;
+    update.reopeningRationale = null;
   }
 
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -235,6 +252,40 @@ export async function transitionSubmission(input: {
       });
     }
 
+    if (input.action === 'reopen') {
+      const relevantDeadlines = await tx.deadline.findMany({
+        where: {
+          mobilityRecordId: submission.mobilityRecordId,
+          procedureDefinitionId: submission.procedureDefinitionId,
+          obligationType: { in: ['SUBMISSION', 'RESUBMISSION'] }
+        }
+      });
+
+      for (const deadline of relevantDeadlines) {
+        const nextState = computeDeadlineState(deadline);
+        if (deadline.state !== nextState) {
+          await tx.deadline.update({
+            where: { id: deadline.id },
+            data: { state: nextState }
+          });
+
+          await tx.auditRecord.create({
+            data: {
+              id: crypto.randomUUID(),
+              actorId: user.id,
+              actionType: 'DEADLINE_REOPENED_FOR_RESUBMISSION',
+              targetType: 'Deadline',
+              targetId: deadline.id,
+              priorState: deadline.state,
+              newState: nextState,
+              outcome: 'SUCCESS',
+              metadataJson: JSON.stringify({ submissionId: submission.id, action: input.action })
+            }
+          });
+        }
+      }
+    }
+
     await tx.submissionEvent.create({
       data: {
         id: crypto.randomUUID(),
@@ -291,6 +342,57 @@ export async function listReviewQueueForCoordinator(coordinatorId: string) {
     },
     orderBy: [{ updatedAt: 'asc' }]
   });
+}
+
+export async function listSubmissionsForCoordinator(
+  coordinatorId: string,
+  options?: {
+    includeStates?: string[];
+    search?: string;
+  }
+) {
+  const includeStates = options?.includeStates?.length ? options.includeStates : undefined;
+  const search = options?.search?.trim();
+
+  return prisma.documentSubmission.findMany({
+    where: {
+      mobilityRecord: { coordinatorId },
+      ...(includeStates ? { state: { in: includeStates } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { id: { contains: search } },
+              { student: { fullName: { contains: search } } },
+              { procedureDefinition: { title: { contains: search } } }
+            ]
+          }
+        : {})
+    },
+    include: {
+      student: true,
+      procedureDefinition: true,
+      mobilityRecord: true,
+      events: { orderBy: { createdAt: 'desc' }, take: 10 }
+    },
+    orderBy: [{ updatedAt: 'desc' }]
+  });
+}
+
+export async function getSubmissionDetailForCoordinator(submissionId: string, coordinatorId: string) {
+  const submission = await prisma.documentSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      student: true,
+      procedureDefinition: true,
+      mobilityRecord: true,
+      events: { orderBy: { createdAt: 'desc' }, take: 30 }
+    }
+  });
+
+  assert(!!submission, 'Submission not found', 404);
+  assert(submission.mobilityRecord.coordinatorId === coordinatorId, 'Coordinator not assigned to this submission', 403);
+
+  return submission;
 }
 
 export async function listProceduresForMobilityRecord(mobilityRecordId: string) {
