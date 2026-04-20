@@ -9,6 +9,7 @@ const studentLinks = [
 
 const coordinatorLinks = [
   { href: '/coordinator/review-queue?userId=coordinator-1', label: 'Review Queue' },
+  { href: '/coordinator/submissions?userId=coordinator-1', label: 'Submission History' },
   { href: '/coordinator/deadlines?userId=coordinator-1', label: 'Deadline View' },
   { href: '/coordinator/exceptions?userId=coordinator-1', label: 'Exception Decisions' }
 ];
