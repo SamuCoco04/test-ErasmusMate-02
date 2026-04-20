@@ -75,8 +75,13 @@ export default function CoordinatorSubmissionHistoryPage() {
         return;
       }
 
-      setSubmissions(data.submissions || []);
-      setSelectedId((prev) => prev ?? data.submissions?.[0]?.id ?? null);
+      const nextSubmissions = data.submissions || [];
+      setSubmissions(nextSubmissions);
+      setSelectedId((prev) =>
+        prev && nextSubmissions.some((submission: SubmissionListItem) => submission.id === prev)
+          ? prev
+          : nextSubmissions[0]?.id ?? null
+      );
     } catch {
       setError('Failed to load submissions');
     } finally {

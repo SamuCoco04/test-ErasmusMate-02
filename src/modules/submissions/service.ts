@@ -144,9 +144,12 @@ function isDeadlineBlocked(deadline: { dueAt: Date; overrideDueAt: Date | null; 
   return new Date() > effectiveDueAt;
 }
 
-function computeDeadlineState(deadline: { dueAt: Date; overrideDueAt: Date | null }) {
-  const effectiveDueAt = deadline.overrideDueAt ?? deadline.dueAt;
-  return new Date() > effectiveDueAt ? 'OVERDUE' : 'UPCOMING';
+function computeDeadlineState(deadline: { dueAt: Date; overrideDueAt: Date | null; state?: string }) {
+  if (deadline.state === 'OVERRIDDEN' || deadline.overrideDueAt) {
+    return 'OVERRIDDEN';
+  }
+
+  return new Date() > deadline.dueAt ? 'OVERDUE' : 'UPCOMING';
 }
 
 export async function transitionSubmission(input: {
@@ -168,6 +171,8 @@ export async function transitionSubmission(input: {
 
   if (input.action === 'submit' || input.action === 'resubmit') {
     update.submittedAt = new Date();
+    update.rejectionRationale = null;
+    update.reopeningRationale = null;
   }
 
   if (input.action === 'approve' || input.action === 'reject') {
@@ -385,7 +390,7 @@ export async function getSubmissionDetailForCoordinator(submissionId: string, co
       student: true,
       procedureDefinition: true,
       mobilityRecord: true,
-      events: { orderBy: { createdAt: 'desc' }, take: 30 }
+      events: { orderBy: { createdAt: 'desc' } }
     }
   });
 
@@ -425,7 +430,6 @@ export async function listAuditRecordsForSubmission(submissionId: string) {
       targetId: submissionId
     },
     include: { actor: true },
-    orderBy: { createdAt: 'desc' },
-    take: 20
+    orderBy: { createdAt: 'desc' }
   });
 }
