@@ -4,7 +4,10 @@ import { listMapPlaceCatalog } from '@/modules/social/service';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId') || '';
+    const userId = request.nextUrl.searchParams.get('userId');
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
     const places = await listMapPlaceCatalog(userId);
     return NextResponse.json({ places });
   } catch (error) {

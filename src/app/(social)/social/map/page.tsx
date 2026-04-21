@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,7 @@ export default function SocialMapPage() {
   const [minRating, setMinRating] = useState('');
 
   const selected = useMemo(() => items.find((item) => item.id === selectedItemId) || items[0] || null, [items, selectedItemId]);
+  const handleSelect = useCallback((itemId: string) => setSelectedItemId(itemId), []);
 
   async function load() {
     setError(null);
@@ -142,7 +143,7 @@ export default function SocialMapPage() {
             <CardTitle>Approved Erasmus public places</CardTitle>
           </CardHeader>
           <CardContent>
-            <SocialMapCanvas items={items} selectedItemId={selected?.id ?? null} onSelect={(itemId) => setSelectedItemId(itemId)} />
+            <SocialMapCanvas items={items} selectedItemId={selected?.id ?? null} onSelect={handleSelect} />
             <p className="mt-2 text-xs text-muted-foreground">
               Map shows only backend-allowed results (public approved places + visible moderated content).
             </p>

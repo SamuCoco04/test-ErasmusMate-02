@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 type MapItem = {
   id: string;
@@ -38,7 +38,7 @@ type MarkerLayer = {
 };
 
 type Marker = {
-  bindPopup: (content: string) => Marker;
+  bindPopup: (content: string | HTMLElement) => Marker;
   on: (event: string, callback: () => void) => Marker;
   addTo: (layer: MarkerLayer) => void;
 };
@@ -57,21 +57,47 @@ function loadLeafletAssets() {
     document.head.appendChild(link);
   }
 
-  if (!document.getElementById(scriptId)) {
+  return new Promise<void>((resolve, reject) => {
+    if (window.L) {
+      resolve();
+      return;
+    }
+
+    const existing = document.getElementById(scriptId);
+    if (existing) {
+      if (window.L) {
+        resolve();
+      } else {
+        const fallbackId = setTimeout(() => {
+          if (window.L) resolve();
+          else reject(new Error('Leaflet script load timeout'));
+        }, 10000);
+        existing.addEventListener('load', () => { clearTimeout(fallbackId); resolve(); });
+        existing.addEventListener('error', () => { clearTimeout(fallbackId); reject(new Error('Failed to load Leaflet script')); });
+      }
+      return;
+    }
+
     const script = document.createElement('script');
     script.id = scriptId;
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
     script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
     script.crossOrigin = '';
-    document.body.appendChild(script);
-  }
 
-  return new Promise<void>((resolve) => {
-    const wait = () => {
-      if (window.L) resolve();
-      else setTimeout(wait, 50);
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Leaflet script load timeout'));
+    }, 10000);
+
+    script.onload = () => {
+      clearTimeout(timeoutId);
+      resolve();
     };
-    wait();
+    script.onerror = () => {
+      clearTimeout(timeoutId);
+      reject(new Error('Failed to load Leaflet script'));
+    };
+
+    document.body.appendChild(script);
   });
 }
 
@@ -87,6 +113,10 @@ export function SocialMapCanvas({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<LeafletMap | null>(null);
   const markerLayerRef = useRef<MarkerLayer | null>(null);
+  const onSelectRef = useRef(onSelect);
+  useLayoutEffect(() => {
+    onSelectRef.current = onSelect;
+  });
 
   const selected = useMemo(() => items.find((item) => item.id === selectedItemId) || null, [items, selectedItemId]);
 
@@ -129,14 +159,23 @@ export function SocialMapCanvas({
       const marker = leaflet.marker([item.place.latitude, item.place.longitude], {
         title: item.title
       });
-      marker.bindPopup(`<strong>${item.title}</strong><br/>${item.kind} · ${item.place.label}`);
-      marker.on('click', () => onSelect(item.id));
+      const popup = document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = item.title;
+      const br = document.createElement('br');
+      const span = document.createElement('span');
+      span.textContent = `${item.kind} · ${item.place.label}`;
+      popup.appendChild(strong);
+      popup.appendChild(br);
+      popup.appendChild(span);
+      marker.bindPopup(popup);
+      marker.on('click', () => onSelectRef.current(item.id));
       marker.addTo(markerLayerRef.current);
       bounds.extend([item.place.latitude, item.place.longitude]);
     }
 
     if (items.length) leafletMapRef.current.fitBounds(bounds, { padding: [25, 25] });
-  }, [items, onSelect]);
+  }, [items]);
 
   useEffect(() => {
     if (!leafletMapRef.current || !selected) return;
