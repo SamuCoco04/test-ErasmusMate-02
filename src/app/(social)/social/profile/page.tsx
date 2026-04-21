@@ -143,7 +143,7 @@ export default function SocialProfilePage() {
             ] as const
           ).map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={Boolean(profile.visibility[key])} onChange={() => toggle(`visibility.${key}`)} />
+              <input type="checkbox" checked={profile.visibility[key]} onChange={() => toggle(`visibility.${key}`)} />
               {label}
             </label>
           ))}

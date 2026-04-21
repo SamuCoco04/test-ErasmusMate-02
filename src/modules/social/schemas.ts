@@ -34,6 +34,7 @@ export const discoveryQuerySchema = z.object({
   mobilityStage: z.string().optional(),
   mobilityPeriod: z
     .string()
+    .min(1)
     .refine((val) => !isNaN(Date.parse(val)), { message: 'mobilityPeriod must be a valid date (YYYY-MM-DD)' })
     .optional()
 });
