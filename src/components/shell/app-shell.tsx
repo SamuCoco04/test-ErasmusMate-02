@@ -30,7 +30,14 @@ export function AppShell({
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <h1 className="font-semibold">ErasmusMate Institutional Core</h1>
-          <div className="text-sm text-muted-foreground">Role: {role}</div>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span>Role: {role}</span>
+            {role === 'student' ? (
+              <Link href="/social/profile?userId=student-1" className="text-blue-700 underline">
+                Go to Social Support
+              </Link>
+            ) : null}
+          </div>
         </div>
       </header>
       <div className="mx-auto grid max-w-6xl grid-cols-12 gap-4 px-4 py-4">

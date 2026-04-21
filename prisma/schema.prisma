@@ -22,6 +22,11 @@ model UserAccount {
   exceptionRequests      ExceptionRequest[]
   exceptionEvents        ExceptionEvent[]
   auditRecords           AuditRecord[]
+  socialSupportProfile   SocialSupportProfile?
+  sentConnections        SocialConnection[]    @relation("ConnectionRequester")
+  receivedConnections    SocialConnection[]    @relation("ConnectionRecipient")
+  blockedConnections     SocialConnection[]    @relation("ConnectionBlockedBy")
+  sentMessages           Message[]             @relation("MessageSender")
 }
 
 model Institution {
@@ -53,6 +58,7 @@ model MobilityRecord {
   submissions  DocumentSubmission[]
   deadlines    Deadline[]
   exceptions   ExceptionRequest[]
+  socialProfiles SocialSupportProfile[]
 }
 
 model ProcedureDefinition {
@@ -192,4 +198,104 @@ model AuditRecord {
   actor UserAccount @relation(fields: [actorId], references: [id])
 
   @@index([targetId])
+}
+
+model SocialSupportProfile {
+  id                   String   @id
+  userId               String   @unique
+  mobilityRecordId     String
+  headline             String?
+  bio                  String?
+  languages            String?
+  interests            String?
+  profileState         String   // unavailable | profile_active_private | discoverable | contactable | consent_revoked_or_restricted
+  discoverable         Boolean  @default(false)
+  contactable          Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 UserAccount               @relation(fields: [userId], references: [id])
+  mobilityRecord       MobilityRecord            @relation(fields: [mobilityRecordId], references: [id])
+  visibilitySettings   SocialVisibilitySettings?
+  consentSettings      SocialConsentSettings?
+  requestedConnections SocialConnection[]        @relation("ProfileRequestedConnections")
+  receivedConnections  SocialConnection[]        @relation("ProfileReceivedConnections")
+
+  @@index([discoverable])
+  @@index([contactable])
+}
+
+model SocialVisibilitySettings {
+  id                         String  @id
+  profileId                  String  @unique
+  showHeadline               Boolean @default(true)
+  showBio                    Boolean @default(false)
+  showLanguages              Boolean @default(true)
+  showInterests              Boolean @default(true)
+  showDestination            Boolean @default(true)
+  showHostInstitution        Boolean @default(true)
+  showCity                   Boolean @default(true)
+  showMobilityPeriod         Boolean @default(true)
+  showMobilityStage          Boolean @default(true)
+  directContactExposed       Boolean @default(false)
+
+  profile                    SocialSupportProfile @relation(fields: [profileId], references: [id])
+}
+
+model SocialConsentSettings {
+  id                     String    @id
+  profileId              String    @unique
+  discoverabilityConsent Boolean   @default(false)
+  contactabilityConsent  Boolean   @default(false)
+  consentRevokedAt       DateTime?
+
+  profile                SocialSupportProfile @relation(fields: [profileId], references: [id])
+}
+
+model SocialConnection {
+  id                  String   @id
+  requesterProfileId  String
+  recipientProfileId  String
+  requesterUserId     String
+  recipientUserId     String
+  state               String   // pending | accepted | rejected | cancelled | expired | blocked | closed
+  initiatedAt         DateTime @default(now())
+  respondedAt         DateTime?
+  closedAt            DateTime?
+  blockedByUserId     String?
+
+  requesterProfile    SocialSupportProfile @relation("ProfileRequestedConnections", fields: [requesterProfileId], references: [id])
+  recipientProfile    SocialSupportProfile @relation("ProfileReceivedConnections", fields: [recipientProfileId], references: [id])
+  requesterUser       UserAccount          @relation("ConnectionRequester", fields: [requesterUserId], references: [id])
+  recipientUser       UserAccount          @relation("ConnectionRecipient", fields: [recipientUserId], references: [id])
+  blockedBy           UserAccount?         @relation("ConnectionBlockedBy", fields: [blockedByUserId], references: [id])
+  thread              MessageThread?
+
+  @@index([requesterUserId])
+  @@index([recipientUserId])
+  @@index([state])
+}
+
+model MessageThread {
+  id               String   @id
+  connectionId     String   @unique
+  permissionState  String   // not_permitted | permitted | blocked | expired_or_closed_retained
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  connection       SocialConnection @relation(fields: [connectionId], references: [id])
+  messages         Message[]
+}
+
+model Message {
+  id           String   @id
+  threadId     String
+  senderUserId String
+  messageText  String
+  sentAt       DateTime @default(now())
+
+  thread       MessageThread @relation(fields: [threadId], references: [id])
+  sender       UserAccount   @relation("MessageSender", fields: [senderUserId], references: [id])
+
+  @@index([threadId, sentAt])
 }
