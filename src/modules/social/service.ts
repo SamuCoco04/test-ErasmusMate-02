@@ -580,7 +580,7 @@ export async function createSocialContent(input: {
 
   if (input.placeContextId) {
     const place = await prisma.placeContext.findUnique({ where: { id: input.placeContextId } });
-    assert(!!place && place.isPublic, 'Place context must reference a public Erasmus-relevant place', 400);
+    assert(!!place && place.isPublic && place.isApproved && place.isActive, 'Place context must reference an approved public Erasmus-relevant place', 400);
   }
 
   return prisma.$transaction(async (tx) => {
@@ -635,7 +635,7 @@ export async function updateSocialContent(input: {
 
   if (input.placeContextId) {
     const place = await prisma.placeContext.findUnique({ where: { id: input.placeContextId } });
-    assert(!!place && place.isPublic, 'Place context must reference a public Erasmus-relevant place', 400);
+    assert(!!place && place.isPublic && place.isApproved && place.isActive, 'Place context must reference an approved public Erasmus-relevant place', 400);
   }
 
   const updated = await prisma.socialContent.update({
@@ -693,7 +693,111 @@ export async function deleteSocialContent(userId: string, contentId: string) {
 
 export async function listPlaceContexts(userId: string) {
   await ensureStudentWithMobility(userId);
-  return prisma.placeContext.findMany({ where: { isPublic: true }, orderBy: [{ city: 'asc' }, { label: 'asc' }] });
+  return prisma.placeContext.findMany({
+    where: { isPublic: true, isApproved: true, isActive: true },
+    orderBy: [{ city: 'asc' }, { label: 'asc' }]
+  });
+}
+
+export async function listMapPlaceCatalog(userId: string) {
+  await ensureStudentWithMobility(userId);
+  return prisma.placeContext.findMany({
+    where: { isPublic: true, isApproved: true, isActive: true },
+    select: {
+      id: true,
+      label: true,
+      city: true,
+      country: true,
+      category: true,
+      latitude: true,
+      longitude: true,
+      erasmusScopeTag: true
+    },
+    orderBy: [{ city: 'asc' }, { label: 'asc' }]
+  });
+}
+
+export async function listSocialMapItems(input: {
+  userId: string;
+  city?: string;
+  category?: 'university_area' | 'student_housing_zone' | 'transport_hub' | 'civic_office' | 'daily_living_area';
+  contentType?: 'recommendation' | 'tip' | 'review' | 'opinion';
+  destination?: string;
+  minRating?: number;
+  search?: string;
+}) {
+  await ensureStudentWithMobility(input.userId);
+
+  const items = await prisma.socialContent.findMany({
+    where: {
+      state: { in: ['published_visible', 'updated_visible'] },
+      moderationState: 'VISIBLE',
+      kind: input.contentType,
+      destinationCity: input.destination ? { contains: input.destination } : undefined,
+      rating: input.minRating ? { gte: input.minRating } : undefined,
+      placeContext: {
+        is: {
+          isPublic: true,
+          isApproved: true,
+          isActive: true,
+          city: input.city ? { contains: input.city } : undefined,
+          category: input.category
+        }
+      },
+      authorProfile: {
+        discoverable: true,
+        consentSettings: { is: { discoverabilityConsent: true } }
+      },
+      ...(input.search
+        ? {
+            OR: [{ title: { contains: input.search } }, { body: { contains: input.search } }, { destinationCity: { contains: input.search } }]
+          }
+        : {})
+    },
+    include: {
+      author: { select: { id: true, fullName: true } },
+      placeContext: true
+    },
+    orderBy: [{ updatedAt: 'desc' }]
+  });
+
+  return items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    excerpt: item.body.slice(0, 140),
+    kind: item.kind,
+    rating: item.rating,
+    destinationCity: item.destinationCity,
+    topicCategory: item.topicCategory,
+    author: item.author,
+    place: {
+      id: item.placeContext!.id,
+      label: item.placeContext!.label,
+      city: item.placeContext!.city,
+      category: item.placeContext!.category,
+      latitude: item.placeContext!.latitude,
+      longitude: item.placeContext!.longitude
+    }
+  }));
+}
+
+export async function getSocialMapItemDetail(userId: string, itemId: string) {
+  await ensureStudentWithMobility(userId);
+  const item = await prisma.socialContent.findFirst({
+    where: {
+      id: itemId,
+      state: { in: ['published_visible', 'updated_visible'] },
+      moderationState: 'VISIBLE',
+      placeContext: { is: { isPublic: true, isApproved: true, isActive: true } },
+      authorProfile: { discoverable: true, consentSettings: { is: { discoverabilityConsent: true } } }
+    },
+    include: {
+      author: { select: { id: true, fullName: true } },
+      placeContext: true
+    }
+  });
+  assert(!!item, 'Map content is not available under current moderation/privacy rules', 404);
+  return item;
 }
 
 export async function setFavorite(userId: string, contentId: string, favorited: boolean) {

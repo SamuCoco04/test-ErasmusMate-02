@@ -125,3 +125,19 @@ export const moderationActionSchema = z.object({
   action: z.enum(['hide', 'remove', 'restrict', 'maintain_visible', 'clear']),
   outcomeSummary: z.string().min(3).max(500)
 });
+
+export const socialMapQuerySchema = z.object({
+  userId: z.string().min(1),
+  city: z.string().optional(),
+  category: z.enum(['university_area', 'student_housing_zone', 'transport_hub', 'civic_office', 'daily_living_area']).optional(),
+  contentType: contentKind.optional(),
+  destination: z.string().optional(),
+  minRating: z.coerce.number().int().min(1).max(5).optional(),
+  search: z.string().optional()
+});
+
+export const socialMapReportSchema = z.object({
+  userId: z.string().min(1),
+  reportReason: z.string().min(3).max(200),
+  reportDetails: z.string().max(1000).optional().nullable()
+});

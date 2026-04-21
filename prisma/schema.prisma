@@ -311,6 +311,11 @@ model PlaceContext {
   city         String
   country      String
   category     String   // university_area | student_housing_zone | transport_hub | civic_office | daily_living_area
+  latitude     Float
+  longitude    Float
+  erasmusScopeTag String @default("general_erasmus_support")
+  isApproved   Boolean  @default(true)
+  isActive     Boolean  @default(true)
   isPublic     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
