@@ -27,6 +27,10 @@ model UserAccount {
   receivedConnections    SocialConnection[]    @relation("ConnectionRecipient")
   blockedConnections     SocialConnection[]    @relation("ConnectionBlockedBy")
   sentMessages           Message[]             @relation("MessageSender")
+  authoredSocialContent  SocialContent[]       @relation("SocialContentAuthor")
+  socialFavorites        SocialFavorite[]
+  moderationReports      ModerationReport[]    @relation("ModerationReporter")
+  moderatedCases         ModerationCase[]      @relation("ModerationModerator")
 }
 
 model Institution {
@@ -220,6 +224,7 @@ model SocialSupportProfile {
   consentSettings      SocialConsentSettings?
   requestedConnections SocialConnection[]        @relation("ProfileRequestedConnections")
   receivedConnections  SocialConnection[]        @relation("ProfileReceivedConnections")
+  authoredContent      SocialContent[]
 
   @@index([discoverable])
   @@index([contactable])
@@ -298,4 +303,102 @@ model Message {
   sender       UserAccount   @relation("MessageSender", fields: [senderUserId], references: [id])
 
   @@index([threadId, sentAt])
+}
+
+model PlaceContext {
+  id           String   @id
+  label        String
+  city         String
+  country      String
+  category     String   // university_area | student_housing_zone | transport_hub | civic_office | daily_living_area
+  isPublic     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  socialContent SocialContent[]
+
+  @@index([city])
+}
+
+model SocialContent {
+  id                 String   @id
+  authorId           String
+  authorProfileId    String
+  kind               String   // recommendation | tip | review | opinion
+  title              String
+  body               String
+  rating             Int?
+  destinationCity    String
+  topicCategory      String   // accommodation | transport | bureaucracy | academics | daily_living
+  placeContextId     String?
+  state              String   // draft_or_editing | published_visible | updated_visible | author_deleted | hidden_or_restricted | removed
+  moderationState    String   @default("VISIBLE") // VISIBLE | THRESHOLD_HIDDEN | HIDDEN | RESTRICTED | REMOVED
+  reportCount        Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  author             UserAccount          @relation("SocialContentAuthor", fields: [authorId], references: [id])
+  authorProfile      SocialSupportProfile @relation(fields: [authorProfileId], references: [id])
+  placeContext       PlaceContext?        @relation(fields: [placeContextId], references: [id])
+  favorites          SocialFavorite[]
+  reports            ModerationReport[]   @relation("ContentReports")
+  moderationCases    ModerationCase[]     @relation("ContentModerationCases")
+
+  @@index([authorId])
+  @@index([destinationCity])
+  @@index([kind])
+  @@index([state, moderationState])
+}
+
+model SocialFavorite {
+  id              String   @id
+  userId          String
+  socialContentId String
+  createdAt       DateTime @default(now())
+
+  user            UserAccount   @relation(fields: [userId], references: [id])
+  socialContent   SocialContent @relation(fields: [socialContentId], references: [id])
+
+  @@unique([userId, socialContentId])
+  @@index([userId, createdAt])
+}
+
+model ModerationReport {
+  id               String   @id
+  reporterId       String
+  targetType       String   // recommendation | tip | review | opinion | message | social_profile | social_interaction
+  targetContentId  String?
+  reportReason     String
+  reportDetails    String?
+  state            String   @default("reported") // reported | in_review | resolved
+  reportedAt       DateTime @default(now())
+  reviewedAt       DateTime?
+
+  reporter         UserAccount     @relation("ModerationReporter", fields: [reporterId], references: [id])
+  targetContent    SocialContent?  @relation("ContentReports", fields: [targetContentId], references: [id])
+  moderationCaseId String?
+  moderationCase   ModerationCase? @relation(fields: [moderationCaseId], references: [id])
+
+  @@index([targetType, targetContentId])
+  @@index([state, reportedAt])
+}
+
+model ModerationCase {
+  id                   String   @id
+  targetType           String   // recommendation | tip | review | opinion | message | social_profile | social_interaction
+  targetContentId      String?
+  caseState            String   // reported | threshold_hidden_pending_review | in_review | resolved_hidden | resolved_removed | resolved_restricted | cleared
+  thresholdTriggered   Boolean  @default(false)
+  outcomeSummary       String?
+  moderationAction     String?  // hide | remove | restrict | maintain_visible | clear
+  moderatorId          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  resolvedAt           DateTime?
+
+  reports              ModerationReport[]
+  targetContent        SocialContent? @relation("ContentModerationCases", fields: [targetContentId], references: [id])
+  moderator            UserAccount?   @relation("ModerationModerator", fields: [moderatorId], references: [id])
+
+  @@index([caseState, updatedAt])
+  @@index([targetType, targetContentId])
 }

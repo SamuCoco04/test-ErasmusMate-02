@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 
 const socialLinks = [
   { href: '/social/profile?userId=student-1', label: 'My Social Profile' },
   { href: '/social/discover?userId=student-1', label: 'Discover Students' },
-  { href: '/social/messages?userId=student-1', label: 'Messages' }
+  { href: '/social/messages?userId=student-1', label: 'Messages' },
+  { href: '/social/content?userId=student-1', label: 'Content & Favorites' }
 ];
 
 export function SocialShell({ children }: { children: React.ReactNode }) {
@@ -21,7 +23,7 @@ export function SocialShell({ children }: { children: React.ReactNode }) {
         <aside className="col-span-12 rounded-lg border bg-white p-3 md:col-span-3">
           <nav className="space-y-1 text-sm">
             {socialLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="block rounded px-2 py-1 hover:bg-muted">
+              <Link key={link.href} href={link.href as Route} className="block rounded px-2 py-1 hover:bg-muted">
                 {link.label}
               </Link>
             ))}

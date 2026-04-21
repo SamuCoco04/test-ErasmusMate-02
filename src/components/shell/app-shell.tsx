@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 
 const studentLinks = [
   { href: '/student/dashboard?userId=student-1', label: 'Mobility Dashboard' },
@@ -14,7 +15,10 @@ const coordinatorLinks = [
   { href: '/coordinator/exceptions?userId=coordinator-1', label: 'Exception Decisions' }
 ];
 
-const adminLinks = [{ href: '/admin', label: 'Admin Home' }];
+const adminLinks = [
+  { href: '/admin?userId=admin-1', label: 'Admin Home' },
+  { href: '/admin/moderation?userId=admin-1', label: 'Moderation Queue' }
+];
 
 export function AppShell({
   role,
@@ -44,7 +48,7 @@ export function AppShell({
         <aside className="col-span-12 rounded-lg border bg-white p-3 md:col-span-3">
           <nav className="space-y-1 text-sm">
             {links.map((link) => (
-              <Link key={link.href} href={link.href} className="block rounded px-2 py-1 hover:bg-muted">
+              <Link key={link.href} href={link.href as Route} className="block rounded px-2 py-1 hover:bg-muted">
                 {link.label}
               </Link>
             ))}

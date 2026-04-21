@@ -283,7 +283,11 @@ async function ensureSocialPair(userId: string, targetProfileId: string, tx: Pri
   assert(!!target, 'Target profile not found', 404);
   assert(target.userId !== userId, 'Cannot connect with yourself');
   assert(target.discoverable && target.contactable, 'Target profile is not discoverable/contactable', 400);
-  assert(target.consentSettings?.discoverabilityConsent && target.consentSettings?.contactabilityConsent, 'Target consent restrictions prevent connection', 400);
+  assert(
+    Boolean(target.consentSettings?.discoverabilityConsent && target.consentSettings?.contactabilityConsent),
+    'Target consent restrictions prevent connection',
+    400
+  );
   return { self, target };
 }
 
@@ -431,7 +435,6 @@ async function assertMessagePermission(connectionId: string, userId: string, tx:
   assert(!!connection, 'Connection not found', 404);
   assert(connection.requesterUserId === userId || connection.recipientUserId === userId, 'Connection is not yours', 403);
   assert(connection.state === 'accepted', 'Messaging is only allowed for accepted connections', 403);
-  assert(connection.state !== 'blocked', 'Blocked connections cannot message', 403);
   assert(connection.thread?.permissionState === 'permitted', 'Messaging permission is not active', 403);
   return connection;
 }
@@ -474,5 +477,424 @@ export async function listMessages(userId: string, connectionId: string) {
     where: { threadId: connection.thread!.id },
     include: { sender: true },
     orderBy: [{ sentAt: 'asc' }]
+  });
+}
+
+const REPORT_THRESHOLD = Number(process.env.SOCIAL_REPORT_THRESHOLD ?? 3);
+
+async function ensureAdministrator(userId: string, tx: Prisma.TransactionClient | typeof prisma = prisma) {
+  const user = await tx.userAccount.findUnique({ where: { id: userId } });
+  assert(!!user, 'User not found', 404);
+  assert(user.role === 'ADMINISTRATOR', 'Moderation access is restricted to administrators', 403);
+  return user;
+}
+
+async function ensureAccessibleContentForStudent(userId: string, contentId: string, tx: Prisma.TransactionClient | typeof prisma = prisma) {
+  await ensureStudentWithMobility(userId, tx);
+  const content = await tx.socialContent.findUnique({
+    where: { id: contentId },
+    include: { placeContext: true, author: true }
+  });
+  assert(!!content, 'Social content not found', 404);
+
+  const isAuthor = content.authorId === userId;
+  const accessible =
+    isAuthor ||
+    (['published_visible', 'updated_visible'].includes(content.state) && content.moderationState === 'VISIBLE');
+  assert(accessible, 'Content is not accessible under current visibility/moderation rules', 403);
+  return content;
+}
+
+function assertContentScope(input: { kind: string; body: string; title: string; destinationCity: string; topicCategory: string }) {
+  const text = `${input.title} ${input.body}`.toLowerCase();
+  const disallowed = ['crypto trading', 'nightclub promoter', 'sports betting'];
+  assert(!disallowed.some((term) => text.includes(term)), 'Content must remain Erasmus-relevant', 400);
+  assert(input.destinationCity.trim().length > 1, 'Destination/city context is required', 400);
+  assert(['accommodation', 'transport', 'bureaucracy', 'academics', 'daily_living'].includes(input.topicCategory), 'Unsupported topic category', 400);
+  if (['review', 'opinion'].includes(input.kind)) {
+    // rating validation is performed in zod and API layer.
+  }
+}
+
+export async function listSocialContent(input: {
+  userId: string;
+  kind?: 'recommendation' | 'tip' | 'review' | 'opinion';
+  destinationCity?: string;
+  topicCategory?: 'accommodation' | 'transport' | 'bureaucracy' | 'academics' | 'daily_living';
+  minRating?: number;
+  search?: string;
+  mineOnly?: boolean;
+}) {
+  await ensureStudentWithMobility(input.userId);
+
+  const where: Prisma.SocialContentWhereInput = {
+    ...(input.mineOnly
+      ? { authorId: input.userId, state: { not: 'removed' } }
+      : {
+          state: { in: ['published_visible', 'updated_visible'] },
+          moderationState: 'VISIBLE'
+        }),
+    ...(input.kind ? { kind: input.kind } : {}),
+    ...(input.destinationCity ? { destinationCity: { contains: input.destinationCity } } : {}),
+    ...(input.topicCategory ? { topicCategory: input.topicCategory } : {}),
+    ...(input.minRating ? { rating: { gte: input.minRating } } : {}),
+    ...(input.search
+      ? {
+          OR: [{ title: { contains: input.search } }, { body: { contains: input.search } }, { destinationCity: { contains: input.search } }]
+        }
+      : {})
+  };
+
+  const content = await prisma.socialContent.findMany({
+    where,
+    include: {
+      author: true,
+      placeContext: true,
+      favorites: { where: { userId: input.userId } }
+    },
+    orderBy: [{ updatedAt: 'desc' }]
+  });
+
+  return content.map((item) => ({
+    ...item,
+    isFavorited: item.favorites.length > 0
+  }));
+}
+
+export async function createSocialContent(input: {
+  userId: string;
+  kind: 'recommendation' | 'tip' | 'review' | 'opinion';
+  title: string;
+  body: string;
+  rating?: number;
+  destinationCity: string;
+  topicCategory: 'accommodation' | 'transport' | 'bureaucracy' | 'academics' | 'daily_living';
+  placeContextId?: string | null;
+}) {
+  const { mobility } = await ensureStudentWithMobility(input.userId);
+  const profile = await getOrCreateSocialProfile(input.userId);
+  assert(profile.profileState !== 'consent_revoked_or_restricted', 'Consent restrictions block content publishing', 403);
+  assertContentScope(input);
+  if (['review', 'opinion'].includes(input.kind)) assert(!!input.rating, 'Reviews/opinions require rating', 400);
+  if (['recommendation', 'tip'].includes(input.kind)) assert(!input.rating, 'Recommendations/tips do not support rating', 400);
+
+  if (input.placeContextId) {
+    const place = await prisma.placeContext.findUnique({ where: { id: input.placeContextId } });
+    assert(!!place && place.isPublic, 'Place context must reference a public Erasmus-relevant place', 400);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.socialContent.create({
+      data: {
+        id: crypto.randomUUID(),
+        authorId: input.userId,
+        authorProfileId: profile.id,
+        kind: input.kind,
+        title: input.title.trim(),
+        body: input.body.trim(),
+        rating: input.rating ?? null,
+        destinationCity: input.destinationCity.trim() || mobility.destinationCity,
+        topicCategory: input.topicCategory,
+        placeContextId: input.placeContextId ?? null,
+        state: 'published_visible',
+        moderationState: 'VISIBLE'
+      }
+    });
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: input.userId,
+        actionType: 'SOCIAL_CONTENT_CREATED',
+        targetType: 'SocialContent',
+        targetId: created.id,
+        newState: created.state,
+        outcome: 'SUCCESS'
+      }
+    });
+    return created;
+  });
+}
+
+export async function updateSocialContent(input: {
+  userId: string;
+  contentId: string;
+  title: string;
+  body: string;
+  rating?: number;
+  destinationCity: string;
+  topicCategory: 'accommodation' | 'transport' | 'bureaucracy' | 'academics' | 'daily_living';
+  placeContextId?: string | null;
+}) {
+  await ensureStudentWithMobility(input.userId);
+  const current = await prisma.socialContent.findUnique({ where: { id: input.contentId } });
+  assert(!!current, 'Social content not found', 404);
+  assert(current.authorId === input.userId, 'Only the author can edit content', 403);
+  assert(!['removed', 'hidden_or_restricted'].includes(current.state), 'Content is locked by moderation/retention state', 400);
+  assert(current.moderationState !== 'REMOVED', 'Removed content cannot be edited', 400);
+  assertContentScope({ ...input, kind: current.kind });
+
+  if (input.placeContextId) {
+    const place = await prisma.placeContext.findUnique({ where: { id: input.placeContextId } });
+    assert(!!place && place.isPublic, 'Place context must reference a public Erasmus-relevant place', 400);
+  }
+
+  const updated = await prisma.socialContent.update({
+    where: { id: input.contentId },
+    data: {
+      title: input.title.trim(),
+      body: input.body.trim(),
+      rating: current.kind === 'review' || current.kind === 'opinion' ? (input.rating ?? null) : null,
+      destinationCity: input.destinationCity.trim(),
+      topicCategory: input.topicCategory,
+      placeContextId: input.placeContextId ?? null,
+      state: 'updated_visible'
+    }
+  });
+  await prisma.auditRecord.create({
+    data: {
+      id: crypto.randomUUID(),
+      actorId: input.userId,
+      actionType: 'SOCIAL_CONTENT_UPDATED',
+      targetType: 'SocialContent',
+      targetId: updated.id,
+      priorState: current.state,
+      newState: updated.state,
+      outcome: 'SUCCESS'
+    }
+  });
+  return updated;
+}
+
+export async function deleteSocialContent(userId: string, contentId: string) {
+  await ensureStudentWithMobility(userId);
+  const current = await prisma.socialContent.findUnique({ where: { id: contentId } });
+  assert(!!current, 'Social content not found', 404);
+  assert(current.authorId === userId, 'Only the author can delete content', 403);
+  assert(!['REMOVED', 'RESTRICTED', 'HIDDEN'].includes(current.moderationState), 'Content is locked by moderation outcome', 400);
+
+  const updated = await prisma.socialContent.update({
+    where: { id: contentId },
+    data: { state: 'author_deleted' }
+  });
+  await prisma.auditRecord.create({
+    data: {
+      id: crypto.randomUUID(),
+      actorId: userId,
+      actionType: 'SOCIAL_CONTENT_DELETED_BY_AUTHOR',
+      targetType: 'SocialContent',
+      targetId: updated.id,
+      priorState: current.state,
+      newState: updated.state,
+      outcome: 'SUCCESS'
+    }
+  });
+  return updated;
+}
+
+export async function listPlaceContexts(userId: string) {
+  await ensureStudentWithMobility(userId);
+  return prisma.placeContext.findMany({ where: { isPublic: true }, orderBy: [{ city: 'asc' }, { label: 'asc' }] });
+}
+
+export async function setFavorite(userId: string, contentId: string, favorited: boolean) {
+  await ensureAccessibleContentForStudent(userId, contentId);
+
+  if (favorited) {
+    const favorite = await prisma.socialFavorite.upsert({
+      where: { userId_socialContentId: { userId, socialContentId: contentId } },
+      create: { id: crypto.randomUUID(), userId, socialContentId: contentId },
+      update: {}
+    });
+    return favorite;
+  }
+  await prisma.socialFavorite.deleteMany({ where: { userId, socialContentId: contentId } });
+  return { userId, socialContentId: contentId, removed: true };
+}
+
+export async function listFavorites(userId: string) {
+  await ensureStudentWithMobility(userId);
+  return prisma.socialFavorite.findMany({
+    where: { userId, socialContent: { state: { in: ['published_visible', 'updated_visible'] }, moderationState: 'VISIBLE' } },
+    include: { socialContent: { include: { author: true, placeContext: true } } },
+    orderBy: [{ createdAt: 'desc' }]
+  });
+}
+
+export async function reportSocialContent(input: {
+  userId: string;
+  targetType: 'recommendation' | 'tip' | 'review' | 'opinion';
+  targetContentId: string;
+  reportReason: string;
+  reportDetails?: string | null;
+}) {
+  await ensureStudentWithMobility(input.userId);
+
+  return prisma.$transaction(async (tx) => {
+    const content = await tx.socialContent.findUnique({ where: { id: input.targetContentId } });
+    assert(!!content, 'Reported content not found', 404);
+    assert(content.kind === input.targetType, 'Report target type mismatch', 400);
+
+    const duplicate = await tx.moderationReport.findFirst({
+      where: { reporterId: input.userId, targetContentId: content.id, state: { in: ['reported', 'in_review'] } }
+    });
+    assert(!duplicate, 'You already have an active report for this content', 400);
+
+    let moderationCase = await tx.moderationCase.findFirst({
+      where: { targetType: content.kind, targetContentId: content.id, caseState: { in: ['reported', 'threshold_hidden_pending_review', 'in_review'] } }
+    });
+
+    if (!moderationCase) {
+      moderationCase = await tx.moderationCase.create({
+        data: {
+          id: crypto.randomUUID(),
+          targetType: content.kind,
+          targetContentId: content.id,
+          caseState: 'reported'
+        }
+      });
+    }
+
+    const report = await tx.moderationReport.create({
+      data: {
+        id: crypto.randomUUID(),
+        reporterId: input.userId,
+        targetType: input.targetType,
+        targetContentId: input.targetContentId,
+        reportReason: input.reportReason.trim(),
+        reportDetails: input.reportDetails?.trim() || null,
+        moderationCaseId: moderationCase.id,
+        state: 'reported'
+      }
+    });
+
+    const reportCount = await tx.moderationReport.count({
+      where: { targetContentId: content.id, state: { in: ['reported', 'in_review'] } }
+    });
+
+    const reachedThreshold = reportCount >= REPORT_THRESHOLD;
+    await tx.socialContent.update({
+      where: { id: content.id },
+      data: {
+        reportCount,
+        moderationState: reachedThreshold ? 'THRESHOLD_HIDDEN' : content.moderationState,
+        state: reachedThreshold ? 'hidden_or_restricted' : content.state
+      }
+    });
+
+    if (reachedThreshold) {
+      await tx.moderationCase.update({
+        where: { id: moderationCase.id },
+        data: { caseState: 'threshold_hidden_pending_review', thresholdTriggered: true }
+      });
+    }
+
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: input.userId,
+        actionType: 'SOCIAL_CONTENT_REPORTED',
+        targetType: 'ModerationReport',
+        targetId: report.id,
+        newState: reachedThreshold ? 'threshold_hidden_pending_review' : 'reported',
+        outcome: 'SUCCESS'
+      }
+    });
+
+    return { report, thresholdTriggered: reachedThreshold, threshold: REPORT_THRESHOLD, activeReportCount: reportCount };
+  });
+}
+
+export async function listModerationQueue(input: { userId: string; state?: string }) {
+  await ensureAdministrator(input.userId);
+  return prisma.moderationCase.findMany({
+    where: input.state ? { caseState: input.state } : {},
+    include: {
+      targetContent: { include: { author: true, placeContext: true } },
+      reports: { include: { reporter: true }, orderBy: [{ reportedAt: 'desc' }] },
+      moderator: true
+    },
+    orderBy: [{ updatedAt: 'desc' }]
+  });
+}
+
+export async function applyModerationAction(input: {
+  userId: string;
+  caseId: string;
+  action: 'hide' | 'remove' | 'restrict' | 'maintain_visible' | 'clear';
+  outcomeSummary: string;
+}) {
+  await ensureAdministrator(input.userId);
+  return prisma.$transaction(async (tx) => {
+    const moderationCase = await tx.moderationCase.findUnique({ where: { id: input.caseId }, include: { reports: true } });
+    assert(!!moderationCase, 'Moderation case not found', 404);
+
+    if (moderationCase.targetContentId) {
+      const nextContentStateByAction: Record<typeof input.action, { moderationState: string; state: string; caseState: string }> = {
+        hide: { moderationState: 'HIDDEN', state: 'hidden_or_restricted', caseState: 'resolved_hidden' },
+        remove: { moderationState: 'REMOVED', state: 'removed', caseState: 'resolved_removed' },
+        restrict: { moderationState: 'RESTRICTED', state: 'hidden_or_restricted', caseState: 'resolved_restricted' },
+        maintain_visible: { moderationState: 'VISIBLE', state: 'updated_visible', caseState: 'cleared' },
+        clear: { moderationState: 'VISIBLE', state: 'updated_visible', caseState: 'cleared' }
+      };
+      const transition = nextContentStateByAction[input.action];
+
+      await tx.socialContent.update({
+        where: { id: moderationCase.targetContentId },
+        data: {
+          moderationState: transition.moderationState,
+          state: transition.state,
+          reportCount: 0
+        }
+      });
+
+      await tx.moderationCase.update({
+        where: { id: moderationCase.id },
+        data: {
+          caseState: transition.caseState,
+          moderationAction: input.action,
+          outcomeSummary: input.outcomeSummary.trim(),
+          moderatorId: input.userId,
+          resolvedAt: new Date()
+        }
+      });
+    } else {
+      await tx.moderationCase.update({
+        where: { id: moderationCase.id },
+        data: {
+          caseState: input.action === 'clear' || input.action === 'maintain_visible' ? 'cleared' : 'resolved_restricted',
+          moderationAction: input.action,
+          outcomeSummary: input.outcomeSummary.trim(),
+          moderatorId: input.userId,
+          resolvedAt: new Date()
+        }
+      });
+    }
+
+    await tx.moderationReport.updateMany({
+      where: { moderationCaseId: moderationCase.id, state: { in: ['reported', 'in_review'] } },
+      data: { state: 'resolved', reviewedAt: new Date() }
+    });
+
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: input.userId,
+        actionType: 'SOCIAL_MODERATION_ACTION_APPLIED',
+        targetType: 'ModerationCase',
+        targetId: moderationCase.id,
+        newState: input.action,
+        outcome: 'SUCCESS',
+        metadataJson: JSON.stringify({ outcomeSummary: input.outcomeSummary })
+      }
+    });
+
+    return tx.moderationCase.findUniqueOrThrow({
+      where: { id: moderationCase.id },
+      include: {
+        targetContent: true,
+        reports: true,
+        moderator: true
+      }
+    });
   });
 }
