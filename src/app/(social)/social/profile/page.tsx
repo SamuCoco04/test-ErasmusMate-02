@@ -51,7 +51,18 @@ export default function SocialProfilePage() {
       contactable: p.contactable,
       discoverabilityConsent: p.consentSettings?.discoverabilityConsent || false,
       contactabilityConsent: p.consentSettings?.contactabilityConsent || false,
-      visibility: p.visibilitySettings
+      visibility: {
+        showHeadline: p.visibilitySettings?.showHeadline ?? true,
+        showBio: p.visibilitySettings?.showBio ?? true,
+        showLanguages: p.visibilitySettings?.showLanguages ?? true,
+        showInterests: p.visibilitySettings?.showInterests ?? true,
+        showDestination: p.visibilitySettings?.showDestination ?? true,
+        showHostInstitution: p.visibilitySettings?.showHostInstitution ?? true,
+        showCity: p.visibilitySettings?.showCity ?? true,
+        showMobilityPeriod: p.visibilitySettings?.showMobilityPeriod ?? true,
+        showMobilityStage: p.visibilitySettings?.showMobilityStage ?? true,
+        directContactExposed: p.visibilitySettings?.directContactExposed ?? false
+      }
     });
     setLoading(false);
   }
@@ -117,10 +128,23 @@ export default function SocialProfilePage() {
         </div>
 
         <div className="grid gap-2 rounded border p-3 md:grid-cols-2">
-          {Object.entries(profile.visibility).map(([key, value]) => (
+          {(
+            [
+              ['showHeadline', 'Show headline'],
+              ['showBio', 'Show bio'],
+              ['showLanguages', 'Show languages'],
+              ['showInterests', 'Show interests'],
+              ['showDestination', 'Show destination'],
+              ['showHostInstitution', 'Show host institution'],
+              ['showCity', 'Show city'],
+              ['showMobilityPeriod', 'Show mobility period'],
+              ['showMobilityStage', 'Show mobility stage'],
+              ['directContactExposed', 'Expose direct contact email']
+            ] as const
+          ).map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={Boolean(value)} onChange={() => toggle(`visibility.${key}`)} />
-              {key}
+              <input type="checkbox" checked={Boolean(profile.visibility[key])} onChange={() => toggle(`visibility.${key}`)} />
+              {label}
             </label>
           ))}
         </div>

@@ -32,7 +32,10 @@ export const discoveryQuerySchema = z.object({
   hostInstitution: z.string().optional(),
   city: z.string().optional(),
   mobilityStage: z.string().optional(),
-  mobilityPeriod: z.string().optional()
+  mobilityPeriod: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), { message: 'mobilityPeriod must be a valid date (YYYY-MM-DD)' })
+    .optional()
 });
 
 export const createConnectionSchema = z.object({

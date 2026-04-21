@@ -189,6 +189,7 @@ type DiscoverableProfile = {
     showBio: boolean;
     showLanguages: boolean;
     showInterests: boolean;
+    showDestination: boolean;
     showHostInstitution: boolean;
     showCity: boolean;
     showMobilityPeriod: boolean;
@@ -207,7 +208,7 @@ function redactProfile(profile: DiscoverableProfile) {
     bio: visibility?.showBio ? profile.bio : null,
     languages: visibility?.showLanguages ? profile.languages : null,
     interests: visibility?.showInterests ? profile.interests : null,
-    destinationCity: visibility?.showCity ? profile.mobilityRecord.destinationCity : null,
+    destinationCity: visibility?.showDestination && visibility?.showCity ? profile.mobilityRecord.destinationCity : null,
     hostInstitution: visibility?.showHostInstitution ? profile.mobilityRecord.institution.name : null,
     mobilityStage: visibility?.showMobilityStage ? profile.mobilityRecord.mobilityPhase : null,
     mobilityPeriod: visibility?.showMobilityPeriod
@@ -239,18 +240,12 @@ export async function discoverStudents(input: {
         state: { in: ['ACTIVE', 'APPROVED', 'IN_REVIEW'] },
         ...(input.destination ? { destinationCity: { contains: input.destination } } : {}),
         ...(input.city ? { destinationCity: { contains: input.city } } : {}),
-        ...(input.mobilityStage ? { mobilityPhase: input.mobilityStage } : {})
+        ...(input.mobilityStage ? { mobilityPhase: input.mobilityStage } : {}),
+        ...(input.hostInstitution ? { institution: { name: { contains: input.hostInstitution } } } : {}),
+        ...(input.mobilityPeriod
+          ? { mobilityStart: { lte: new Date(input.mobilityPeriod) }, mobilityEnd: { gte: new Date(input.mobilityPeriod) } }
+          : {})
       },
-      ...(input.hostInstitution
-        ? { mobilityRecord: { institution: { name: { contains: input.hostInstitution } } } }
-        : {}),
-      ...(input.mobilityPeriod
-        ? {
-            OR: [
-              { mobilityRecord: { mobilityStart: { lte: new Date(input.mobilityPeriod) }, mobilityEnd: { gte: new Date(input.mobilityPeriod) } } }
-            ]
-          }
-        : {}),
       ...(search
         ? {
             OR: [
@@ -446,12 +441,14 @@ export async function sendMessage(input: { userId: string; connectionId: string;
 
   return prisma.$transaction(async (tx) => {
     const connection = await assertMessagePermission(input.connectionId, input.userId, tx);
+    const trimmedText = input.messageText.trim();
+    assert(trimmedText.length > 0, 'Message text cannot be empty or whitespace only', 400);
     const message = await tx.message.create({
       data: {
         id: crypto.randomUUID(),
         threadId: connection.thread!.id,
         senderUserId: input.userId,
-        messageText: input.messageText.trim()
+        messageText: trimmedText
       }
     });
 

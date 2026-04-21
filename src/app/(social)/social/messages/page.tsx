@@ -42,7 +42,9 @@ export default function SocialMessagesPage() {
     }
     setConnections(data.connections || []);
     if (!selectedConnectionId && data.connections?.length) {
-      const first = data.connections.find((connection: ConnectionItem) => connection.state === 'accepted');
+      const first = data.connections.find(
+        (connection: ConnectionItem) => connection.state === 'accepted' && connection.thread?.permissionState === 'permitted'
+      );
       if (first) setSelectedConnectionId(first.id);
     }
   }
