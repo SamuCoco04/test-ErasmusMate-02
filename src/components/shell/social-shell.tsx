@@ -4,6 +4,7 @@ import type { Route } from 'next';
 const socialLinks = [
   { href: '/social/profile?userId=student-1', label: 'My Social Profile' },
   { href: '/social/discover?userId=student-1', label: 'Discover Students' },
+  { href: '/social/map?userId=student-1', label: 'Map Discovery' },
   { href: '/social/messages?userId=student-1', label: 'Messages' },
   { href: '/social/content?userId=student-1', label: 'Content & Favorites' }
 ];

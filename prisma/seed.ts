@@ -427,9 +427,45 @@ async function main() {
 
   const placeLibrary = await prisma.placeContext.createMany({
     data: [
-      { id: 'place-1', label: 'UB Main Campus Area', city: 'Barcelona', country: 'Spain', category: 'university_area', isPublic: true },
-      { id: 'place-2', label: 'Sants Transit Hub', city: 'Barcelona', country: 'Spain', category: 'transport_hub', isPublic: true },
-      { id: 'place-3', label: 'Student Office District', city: 'Barcelona', country: 'Spain', category: 'civic_office', isPublic: true }
+      {
+        id: 'place-1',
+        label: 'UB Main Campus Area',
+        city: 'Barcelona',
+        country: 'Spain',
+        category: 'university_area',
+        latitude: 41.3842,
+        longitude: 2.1636,
+        erasmusScopeTag: 'academic_onboarding',
+        isApproved: true,
+        isActive: true,
+        isPublic: true
+      },
+      {
+        id: 'place-2',
+        label: 'Sants Transit Hub',
+        city: 'Barcelona',
+        country: 'Spain',
+        category: 'transport_hub',
+        latitude: 41.3791,
+        longitude: 2.1392,
+        erasmusScopeTag: 'arrival_and_transport',
+        isApproved: true,
+        isActive: true,
+        isPublic: true
+      },
+      {
+        id: 'place-3',
+        label: 'Student Office District',
+        city: 'Barcelona',
+        country: 'Spain',
+        category: 'civic_office',
+        latitude: 41.3888,
+        longitude: 2.1589,
+        erasmusScopeTag: 'administrative_tasks',
+        isApproved: true,
+        isActive: true,
+        isPublic: true
+      }
     ]
   });
 
