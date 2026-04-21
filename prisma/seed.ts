@@ -3,6 +3,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.moderationReport.deleteMany();
+  await prisma.moderationCase.deleteMany();
+  await prisma.socialFavorite.deleteMany();
+  await prisma.socialContent.deleteMany();
+  await prisma.placeContext.deleteMany();
   await prisma.message.deleteMany();
   await prisma.messageThread.deleteMany();
   await prisma.socialConnection.deleteMany();
@@ -419,6 +424,84 @@ async function main() {
       }
     ]
   });
+
+  const placeLibrary = await prisma.placeContext.createMany({
+    data: [
+      { id: 'place-1', label: 'UB Main Campus Area', city: 'Barcelona', country: 'Spain', category: 'university_area', isPublic: true },
+      { id: 'place-2', label: 'Sants Transit Hub', city: 'Barcelona', country: 'Spain', category: 'transport_hub', isPublic: true },
+      { id: 'place-3', label: 'Student Office District', city: 'Barcelona', country: 'Spain', category: 'civic_office', isPublic: true }
+    ]
+  });
+
+  if (placeLibrary.count > 0) {
+    const recommendation = await prisma.socialContent.create({
+      data: {
+        id: 'content-1',
+        authorId: student.id,
+        authorProfileId: socialProfileOne.id,
+        kind: 'recommendation',
+        title: 'Best first-week accommodation checklist',
+        body: 'Start with verified student housing portals and keep landlord communication documented for Erasmus onboarding.',
+        destinationCity: 'Barcelona',
+        topicCategory: 'accommodation',
+        placeContextId: 'place-1',
+        state: 'published_visible',
+        moderationState: 'VISIBLE'
+      }
+    });
+
+    const review = await prisma.socialContent.create({
+      data: {
+        id: 'content-2',
+        authorId: studentTwo.id,
+        authorProfileId: socialProfileTwo.id,
+        kind: 'review',
+        title: 'Transport card setup experience',
+        body: 'The metro card process is efficient if you pre-book your student verification slot.',
+        rating: 4,
+        destinationCity: 'Barcelona',
+        topicCategory: 'transport',
+        placeContextId: 'place-2',
+        state: 'published_visible',
+        moderationState: 'VISIBLE'
+      }
+    });
+
+    await prisma.socialFavorite.create({
+      data: {
+        id: 'favorite-1',
+        userId: student.id,
+        socialContentId: review.id
+      }
+    });
+
+    const moderationCase = await prisma.moderationCase.create({
+      data: {
+        id: 'mod-case-1',
+        targetType: 'review',
+        targetContentId: review.id,
+        caseState: 'reported'
+      }
+    });
+
+    await prisma.moderationReport.create({
+      data: {
+        id: 'mod-report-1',
+        reporterId: student.id,
+        targetType: 'review',
+        targetContentId: review.id,
+        reportReason: 'Potentially misleading process details',
+        reportDetails: 'Could need verification on updated process steps.',
+        moderationCaseId: moderationCase.id,
+        state: 'reported'
+      }
+    });
+
+    await prisma.socialContent.update({
+      where: { id: recommendation.id },
+      data: { reportCount: 0 }
+    });
+  }
 }
 
 main()
