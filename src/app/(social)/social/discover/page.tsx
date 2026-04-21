@@ -100,7 +100,7 @@ export default function SocialDiscoverPage() {
               <p className="font-medium">{result.studentName}</p>
               <p>{result.headline || 'No headline visible'}</p>
               <p>{result.destinationCity || 'City hidden'} · {result.hostInstitution || 'Institution hidden'}</p>
-              <Button size="sm" className="mt-2" onClick={() => connect(result.id)}>
+              <Button className="mt-2" onClick={() => connect(result.id)}>
                 Send request
               </Button>
             </div>
@@ -125,15 +125,15 @@ export default function SocialDiscoverPage() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {connection.state === 'pending' && connection.recipientUserId === userId ? (
                     <>
-                      <Button size="sm" onClick={() => act(connection.id, 'accept')}>Accept</Button>
-                      <Button size="sm" variant="outline" onClick={() => act(connection.id, 'reject')}>Reject</Button>
+                      <Button onClick={() => act(connection.id, 'accept')}>Accept</Button>
+                      <Button variant="outline" onClick={() => act(connection.id, 'reject')}>Reject</Button>
                     </>
                   ) : null}
                   {connection.state === 'pending' && connection.requesterUserId === userId ? (
-                    <Button size="sm" variant="outline" onClick={() => act(connection.id, 'cancel')}>Cancel pending</Button>
+                    <Button variant="outline" onClick={() => act(connection.id, 'cancel')}>Cancel pending</Button>
                   ) : null}
                   {['pending', 'accepted'].includes(connection.state) ? (
-                    <Button size="sm" variant="destructive" onClick={() => act(connection.id, 'block')}>Block</Button>
+                    <Button variant="destructive" onClick={() => act(connection.id, 'block')}>Block</Button>
                   ) : null}
                 </div>
               </div>

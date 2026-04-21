@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,28 +9,42 @@ import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/states/error-state';
 import { LoadingState } from '@/components/states/loading-state';
 
+type ToggleKey = 'discoverabilityConsent' | 'contactabilityConsent' | 'discoverable' | 'contactable';
+type VisibilityKey =
+  | 'showHeadline'
+  | 'showBio'
+  | 'showLanguages'
+  | 'showInterests'
+  | 'showDestination'
+  | 'showHostInstitution'
+  | 'showCity'
+  | 'showMobilityPeriod'
+  | 'showMobilityStage'
+  | 'directContactExposed';
+
+type ProfileForm = {
+  mobilityRecordId: string;
+  headline: string;
+  bio: string;
+  languages: string;
+  interests: string;
+  discoverable: boolean;
+  contactable: boolean;
+  discoverabilityConsent: boolean;
+  contactabilityConsent: boolean;
+  visibility: Record<VisibilityKey, boolean>;
+};
+
 export default function SocialProfilePage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'student-1';
 
-  type ProfileForm = {
-    mobilityRecordId: string;
-    headline: string;
-    bio: string;
-    languages: string;
-    interests: string;
-    discoverable: boolean;
-    contactable: boolean;
-    discoverabilityConsent: boolean;
-    contactabilityConsent: boolean;
-    visibility: Record<string, boolean>;
-  };
   const [profile, setProfile] = useState<ProfileForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const response = await fetch(`/api/social/profile?userId=${userId}`);
     const data = await response.json();
@@ -65,22 +79,18 @@ export default function SocialProfilePage() {
       }
     });
     setLoading(false);
-  }
+  }, [userId]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [load]);
 
-  function toggle(path: string) {
-    setProfile((current) => {
-      if (!current) return current;
-      if (path.startsWith('visibility.')) {
-        const key = path.replace('visibility.', '');
-        return { ...current, visibility: { ...current.visibility, [key]: !current.visibility[key] } };
-      }
-      return { ...current, [path]: !current[path] };
-    });
+  function toggleKey(key: ToggleKey) {
+    setProfile((current) => (current ? { ...current, [key]: !current[key] } : current));
+  }
+
+  function toggleVisibilityKey(key: VisibilityKey) {
+    setProfile((current) => (current ? { ...current, visibility: { ...current.visibility, [key]: !current.visibility[key] } } : current));
   }
 
   async function save() {
@@ -121,7 +131,7 @@ export default function SocialProfilePage() {
             ['contactable', 'Contactable profile']
           ].map(([key, label]) => (
             <label key={key} className="flex items-center gap-2">
-              <input type="checkbox" checked={profile[key]} onChange={() => toggle(key)} />
+              <input type="checkbox" checked={profile[key as ToggleKey]} onChange={() => toggleKey(key as ToggleKey)} />
               {label}
             </label>
           ))}
@@ -143,7 +153,7 @@ export default function SocialProfilePage() {
             ] as const
           ).map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={profile.visibility[key]} onChange={() => toggle(`visibility.${key}`)} />
+              <input type="checkbox" checked={profile.visibility[key]} onChange={() => toggleVisibilityKey(key)} />
               {label}
             </label>
           ))}
