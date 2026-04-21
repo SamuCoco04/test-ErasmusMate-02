@@ -1,19 +1,43 @@
-# ErasmusMate — Phase 2 (Institutional Core MVP)
+# ErasmusMate — Phase 7 Demo Polish & Reliability
 
-This phase extends the institutional foundation to deliver end-to-end workflow coverage for:
-- mobility dashboard/read model (WF-001)
-- procedure applicability listing (REQ-018)
-- submission + coordinator review flow (WF-003)
-- deadline views/governance read model (WF-006)
-- exception submission and decision flow (WF-005)
-- critical-action audit rendering (REQ-072/REQ-073)
+ErasmusMate is a locally runnable, full-stack Next.js prototype with:
+
+- **Primary institutional Erasmus mobility management workflows** (student/coordinator/admin)
+- **Secondary social-support layer** (discovery, connections, messaging, content, moderation, map)
+- Prisma + SQLite persistence and deterministic demo seeding
 
 ## Stack
-- Next.js (App Router) + TypeScript + Tailwind
-- Prisma + SQLite
-- Zod validation at route boundaries
 
-## Institutional routes
+- Next.js 14 (App Router) + TypeScript
+- Tailwind CSS + reusable UI primitives
+- Prisma + SQLite
+- Zod validation for API boundaries
+
+## Quick start
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Generate Prisma client and apply migrations:
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+3. Seed deterministic demo data:
+   ```bash
+   npm run db:seed
+   ```
+4. Start the app:
+   ```bash
+   npm run dev
+   ```
+
+## Demo users and role routes
+
+Use these query params to simulate role-aware flows locally.
+
+### Institutional layer
 - Student dashboard: `/student/dashboard?userId=student-1`
 - Student submissions: `/student/submissions?userId=student-1`
 - Student deadlines: `/student/deadlines?userId=student-1`
@@ -21,15 +45,47 @@ This phase extends the institutional foundation to deliver end-to-end workflow c
 - Coordinator queue: `/coordinator/review-queue?userId=coordinator-1`
 - Coordinator deadlines: `/coordinator/deadlines?userId=coordinator-1`
 - Coordinator exceptions: `/coordinator/exceptions?userId=coordinator-1`
+- Admin dashboard: `/admin?userId=admin-1`
+- Admin moderation queue: `/admin/moderation?userId=admin-1`
 
-## APIs introduced in phase 2
-- `GET /api/mobility-records`
-- `GET /api/procedures/applicable`
-- `GET /api/deadlines`
-- `GET /api/exceptions`
-- `POST /api/exceptions`
-- `PATCH /api/exceptions/:exceptionId/decision`
+### Social layer
+- Social home: `/social?userId=student-1`
+- Discover + connections: `/social/discover?userId=student-1`
+- Messages: `/social/messages?userId=student-1`
+- Content board: `/social/content?userId=student-1`
+- Map discovery: `/social/map?userId=student-1`
 
-## Notes
-- Social layer is intentionally not started in this phase.
-- Workflow transitions remain backend-enforced and audit-backed.
+## Phase 7 demo journeys (seed-backed)
+
+### 1) Student submission + coordinator decision
+1. Open `/student/submissions?userId=student-1`.
+2. Review seeded draft (`sub-1`) and rejected case (`sub-2`).
+3. Submit or resubmit from student view.
+4. Open `/coordinator/review-queue?userId=coordinator-1` and run start review / approve / reject / reopen.
+
+### 2) Exception request workflow
+1. Open `/student/exceptions?userId=student-1` and submit a new exception.
+2. Open `/coordinator/exceptions?userId=coordinator-1`.
+3. Process requests through start review / approve / reject / apply / close.
+
+### 3) Discovery → connection → messaging
+1. Open `/social/discover?userId=student-1` to view discoverable peers.
+2. Send or respond to seeded pending requests.
+3. Open `/social/messages?userId=student-1` to message accepted connections.
+
+### 4) Content + moderation + admin queue
+1. Open `/social/content?userId=student-1` and create/report/favorite items.
+2. Open `/admin/moderation?userId=admin-1` for review queue actions.
+3. Confirm moderation states are reflected in social content visibility.
+
+### 5) Map discovery
+1. Open `/social/map?userId=student-1`.
+2. Apply filters, select markers, open detail, and report from map panel.
+3. Verify map lists only approved/public place contexts and visible content.
+
+## Reliability & demo notes
+
+- Data is deterministic: rerun `npm run db:seed` to reset to baseline.
+- Main role journeys persist across refresh and navigation.
+- Institutional and social layers remain separated by route groups and shell layouts.
+- Accessibility baseline improvements include clearer empty/loading/error states and better interactive control semantics in key institutional pages.

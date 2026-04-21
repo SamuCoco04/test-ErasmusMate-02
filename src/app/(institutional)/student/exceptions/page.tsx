@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ErrorState } from '@/components/states/error-state';
+import { EmptyState } from '@/components/states/empty-state';
+import { LoadingState } from '@/components/states/loading-state';
+import type { StudentExceptionItem } from '@/modules/institutional/types';
 
 const MOBILITY_ID = 'mobility-1';
 
@@ -15,13 +18,15 @@ export default function StudentExceptionsPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'student-1';
 
-  const [exceptions, setExceptions] = useState<any[]>([]);
+  const [exceptions, setExceptions] = useState<StudentExceptionItem[]>([]);
   const [scopeRefId, setScopeRefId] = useState('deadline-1');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await fetch(`/api/exceptions?role=student&userId=${userId}`);
       const payload = await response.json();
@@ -34,12 +39,14 @@ export default function StudentExceptionsPage() {
       setError(null);
     } catch {
       setError('Failed to load exceptions');
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [userId]);
 
   useEffect(() => {
     load();
-  }, [userId]);
+  }, [load]);
 
   async function submitException() {
     setSaving(true);
@@ -80,8 +87,14 @@ export default function StudentExceptionsPage() {
           <CardTitle>Exception request workflow (WF-005)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <Input value={scopeRefId} onChange={(e) => setScopeRefId(e.target.value)} placeholder="Deadline reference id" />
+          <Input
+            aria-label="Deadline reference id"
+            value={scopeRefId}
+            onChange={(e) => setScopeRefId(e.target.value)}
+            placeholder="Deadline reference id"
+          />
           <Textarea
+            aria-label="Exception reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Explain why this exception is needed"
@@ -92,7 +105,11 @@ export default function StudentExceptionsPage() {
         </CardContent>
       </Card>
 
+      {loading ? <LoadingState /> : null}
       {error ? <ErrorState message={error} /> : null}
+      {!loading && !error && !exceptions.length ? (
+        <EmptyState title="No exception requests yet" hint="Submit your first deadline or procedure exception above." />
+      ) : null}
 
       {exceptions.map((item) => (
         <Card key={item.id}>
