@@ -3,6 +3,12 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.message.deleteMany();
+  await prisma.messageThread.deleteMany();
+  await prisma.socialConnection.deleteMany();
+  await prisma.socialConsentSettings.deleteMany();
+  await prisma.socialVisibilitySettings.deleteMany();
+  await prisma.socialSupportProfile.deleteMany();
   await prisma.auditRecord.deleteMany();
   await prisma.exceptionEvent.deleteMany();
   await prisma.exceptionRequest.deleteMany();
@@ -24,6 +30,24 @@ async function main() {
       id: 'student-1',
       fullName: 'Maria Rodriguez',
       email: 'maria@example.edu',
+      role: 'STUDENT'
+    }
+  });
+
+  const studentTwo = await prisma.userAccount.create({
+    data: {
+      id: 'student-2',
+      fullName: 'Luca Bianchi',
+      email: 'luca@example.edu',
+      role: 'STUDENT'
+    }
+  });
+
+  const studentThree = await prisma.userAccount.create({
+    data: {
+      id: 'student-3',
+      fullName: 'Elena Petrova',
+      email: 'elena@example.edu',
       role: 'STUDENT'
     }
   });
@@ -58,6 +82,36 @@ async function main() {
       mobilityPhase: 'DURING_MOBILITY',
       mobilityStart: new Date('2026-02-01T00:00:00.000Z'),
       mobilityEnd: new Date('2026-06-30T00:00:00.000Z')
+    }
+  });
+
+  const mobilityRecordTwo = await prisma.mobilityRecord.create({
+    data: {
+      id: 'mobility-2',
+      studentId: studentTwo.id,
+      coordinatorId: coordinator.id,
+      institutionId: institution.id,
+      state: 'ACTIVE',
+      destinationCity: 'Barcelona',
+      mobilityType: 'STUDIES',
+      mobilityPhase: 'DURING_MOBILITY',
+      mobilityStart: new Date('2026-01-20T00:00:00.000Z'),
+      mobilityEnd: new Date('2026-07-01T00:00:00.000Z')
+    }
+  });
+
+  const mobilityRecordThree = await prisma.mobilityRecord.create({
+    data: {
+      id: 'mobility-3',
+      studentId: studentThree.id,
+      coordinatorId: coordinator.id,
+      institutionId: institution.id,
+      state: 'ACTIVE',
+      destinationCity: 'Lisbon',
+      mobilityType: 'STUDIES',
+      mobilityPhase: 'PRE_DEPARTURE',
+      mobilityStart: new Date('2026-08-01T00:00:00.000Z'),
+      mobilityEnd: new Date('2027-01-30T00:00:00.000Z')
     }
   });
 
@@ -210,6 +264,158 @@ async function main() {
         newState: 'SUBMITTED',
         outcome: 'SUCCESS',
         metadataJson: JSON.stringify({ source: 'seed' })
+      }
+    ]
+  });
+
+  const socialProfileOne = await prisma.socialSupportProfile.create({
+    data: {
+      id: 'social-1',
+      userId: student.id,
+      mobilityRecordId: mobilityRecord.id,
+      headline: 'Looking for peers in Barcelona mobility cohort',
+      bio: 'Focused on Erasmus studies and housing tips around campus.',
+      languages: 'Spanish, English',
+      interests: 'Academics, local administration, student life',
+      profileState: 'contactable',
+      discoverable: true,
+      contactable: true
+    }
+  });
+
+  const socialProfileTwo = await prisma.socialSupportProfile.create({
+    data: {
+      id: 'social-2',
+      userId: studentTwo.id,
+      mobilityRecordId: mobilityRecordTwo.id,
+      headline: 'Happy to help with registration and transport questions',
+      bio: 'Second semester in Barcelona with practical onboarding tips.',
+      languages: 'Italian, English, Spanish',
+      interests: 'Transport, bureaucracy, budgeting',
+      profileState: 'contactable',
+      discoverable: true,
+      contactable: true
+    }
+  });
+
+  await prisma.socialSupportProfile.create({
+    data: {
+      id: 'social-3',
+      userId: studentThree.id,
+      mobilityRecordId: mobilityRecordThree.id,
+      headline: 'Preparing for Lisbon mobility',
+      profileState: 'profile_active_private',
+      discoverable: false,
+      contactable: false
+    }
+  });
+
+  await prisma.socialVisibilitySettings.createMany({
+    data: [
+      {
+        id: 'social-vis-1',
+        profileId: socialProfileOne.id,
+        showHeadline: true,
+        showBio: true,
+        showLanguages: true,
+        showInterests: true,
+        showDestination: true,
+        showHostInstitution: true,
+        showCity: true,
+        showMobilityPeriod: true,
+        showMobilityStage: true,
+        directContactExposed: false
+      },
+      {
+        id: 'social-vis-2',
+        profileId: socialProfileTwo.id,
+        showHeadline: true,
+        showBio: true,
+        showLanguages: true,
+        showInterests: true,
+        showDestination: true,
+        showHostInstitution: true,
+        showCity: true,
+        showMobilityPeriod: true,
+        showMobilityStage: true,
+        directContactExposed: true
+      },
+      {
+        id: 'social-vis-3',
+        profileId: 'social-3',
+        showHeadline: false,
+        showBio: false,
+        showLanguages: false,
+        showInterests: false,
+        showDestination: false,
+        showHostInstitution: false,
+        showCity: false,
+        showMobilityPeriod: false,
+        showMobilityStage: false,
+        directContactExposed: false
+      }
+    ]
+  });
+
+  await prisma.socialConsentSettings.createMany({
+    data: [
+      {
+        id: 'social-consent-1',
+        profileId: socialProfileOne.id,
+        discoverabilityConsent: true,
+        contactabilityConsent: true
+      },
+      {
+        id: 'social-consent-2',
+        profileId: socialProfileTwo.id,
+        discoverabilityConsent: true,
+        contactabilityConsent: true
+      },
+      {
+        id: 'social-consent-3',
+        profileId: 'social-3',
+        discoverabilityConsent: false,
+        contactabilityConsent: false,
+        consentRevokedAt: new Date('2026-03-10T00:00:00.000Z')
+      }
+    ]
+  });
+
+  const acceptedConnection = await prisma.socialConnection.create({
+    data: {
+      id: 'conn-accepted-1',
+      requesterProfileId: socialProfileOne.id,
+      recipientProfileId: socialProfileTwo.id,
+      requesterUserId: student.id,
+      recipientUserId: studentTwo.id,
+      state: 'accepted',
+      respondedAt: new Date('2026-03-01T10:00:00.000Z')
+    }
+  });
+
+  const thread = await prisma.messageThread.create({
+    data: {
+      id: 'thread-1',
+      connectionId: acceptedConnection.id,
+      permissionState: 'permitted'
+    }
+  });
+
+  await prisma.message.createMany({
+    data: [
+      {
+        id: 'msg-1',
+        threadId: thread.id,
+        senderUserId: student.id,
+        messageText: 'Hi Luca, do you have tips for first week registration?',
+        sentAt: new Date('2026-03-02T09:00:00.000Z')
+      },
+      {
+        id: 'msg-2',
+        threadId: thread.id,
+        senderUserId: studentTwo.id,
+        messageText: 'Yes, start with Erasmus office slot booking and transport card setup.',
+        sentAt: new Date('2026-03-02T09:05:00.000Z')
       }
     ]
   });

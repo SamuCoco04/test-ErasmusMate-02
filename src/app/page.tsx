@@ -37,6 +37,11 @@ export default function HomePage() {
                 Coordinator exception decisions
               </Link>
             </li>
+            <li>
+              <Link className="text-blue-600 underline" href="/social/profile?userId=student-1">
+                Social profile and discovery foundation
+              </Link>
+            </li>
           </ul>
         </CardContent>
       </Card>
