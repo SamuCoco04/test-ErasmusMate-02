@@ -7,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingState } from '@/components/states/loading-state';
 import { ErrorState } from '@/components/states/error-state';
 import { EmptyState } from '@/components/states/empty-state';
-import type { DeadlineItem } from '@/modules/institutional/types';
+import type { StudentDeadlineItem } from '@/modules/institutional/types';
 
 export default function StudentDeadlinesPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'student-1';
 
-  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
+  const [deadlines, setDeadlines] = useState<StudentDeadlineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

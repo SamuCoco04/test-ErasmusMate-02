@@ -9,13 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { LoadingState } from '@/components/states/loading-state';
-import type { ExceptionItem } from '@/modules/institutional/types';
+import type { CoordinatorExceptionItem } from '@/modules/institutional/types';
 
 export default function CoordinatorExceptionsPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'coordinator-1';
 
-  const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
+  const [exceptions, setExceptions] = useState<CoordinatorExceptionItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rationale, setRationale] = useState('');
   const [loading, setLoading] = useState(true);
@@ -31,8 +31,13 @@ export default function CoordinatorExceptionsPage() {
         setError(payload.error || 'Failed to load exception queue');
         return;
       }
-      setExceptions(payload.exceptions || []);
-      setSelectedId((prev) => prev ?? payload.exceptions?.[0]?.id ?? null);
+      const nextExceptions = payload.exceptions || [];
+      setExceptions(nextExceptions);
+      setSelectedId((prev) =>
+        prev && nextExceptions.some((item: CoordinatorExceptionItem) => item.id === prev)
+          ? prev
+          : nextExceptions[0]?.id ?? null,
+      );
       setError(null);
     } catch {
       setError('Failed to load exception queue');
@@ -88,7 +93,9 @@ export default function CoordinatorExceptionsPage() {
 
       {!loading && !error && !exceptions.length ? (
         <EmptyState title="Exception queue empty" hint="Submitted exception requests will appear here for review." />
-      ) : (
+      ) : null}
+
+      {!loading && !error && exceptions.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -139,7 +146,7 @@ export default function CoordinatorExceptionsPage() {
             </CardContent>
           </Card>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

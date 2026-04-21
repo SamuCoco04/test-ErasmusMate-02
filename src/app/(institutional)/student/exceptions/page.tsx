@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ErrorState } from '@/components/states/error-state';
 import { EmptyState } from '@/components/states/empty-state';
 import { LoadingState } from '@/components/states/loading-state';
-import type { ExceptionItem } from '@/modules/institutional/types';
+import type { StudentExceptionItem } from '@/modules/institutional/types';
 
 const MOBILITY_ID = 'mobility-1';
 
@@ -18,7 +18,7 @@ export default function StudentExceptionsPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'student-1';
 
-  const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
+  const [exceptions, setExceptions] = useState<StudentExceptionItem[]>([]);
   const [scopeRefId, setScopeRefId] = useState('deadline-1');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);

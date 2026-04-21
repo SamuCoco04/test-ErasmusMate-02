@@ -886,7 +886,7 @@ async function main() {
         id: 'mod-case-2',
         targetType: 'recommendation',
         targetContentId: hiddenRecommendation.id,
-        caseState: 'hidden',
+        caseState: 'resolved_hidden',
         moderatorId: admin.id
       }
     })
@@ -912,7 +912,7 @@ async function main() {
         reportReason: 'Contains private location details',
         reportDetails: 'Includes non-public private references not allowed for map/social display.',
         moderationCaseId: moderationCaseHidden.id,
-        state: 'resolved_hidden'
+        state: 'resolved'
       }
     ]
   });
