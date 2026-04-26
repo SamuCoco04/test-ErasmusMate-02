@@ -104,45 +104,56 @@ export async function createOrGetDraftAgreement(input: { userId: string; mobilit
   assert(!!mobilityRecord, 'Mobility record not found', 404);
   assert(mobilityRecord.studentId === input.userId, 'Unauthorized mobility record access', 403);
 
-  const existing = await prisma.learningAgreement.findUnique({ where: { mobilityRecordId: mobilityRecord.id } });
-  if (existing) return existing;
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const agreement = await tx.learningAgreement.create({
+        data: {
+          id: crypto.randomUUID(),
+          mobilityRecordId: mobilityRecord.id,
+          studentId: input.userId,
+          coordinatorId: mobilityRecord.coordinatorId,
+          state: AgreementState.DRAFT
+        }
+      });
 
-  return prisma.$transaction(async (tx) => {
-    const agreement = await tx.learningAgreement.create({
-      data: {
-        id: crypto.randomUUID(),
-        mobilityRecordId: mobilityRecord.id,
-        studentId: input.userId,
-        coordinatorId: mobilityRecord.coordinatorId,
-        state: AgreementState.DRAFT
-      }
+      await tx.learningAgreementEvent.create({
+        data: {
+          id: crypto.randomUUID(),
+          agreementId: agreement.id,
+          actorId: input.userId,
+          actionType: 'AGREEMENT_CREATED',
+          toState: AgreementState.DRAFT,
+          noteOrRationale: 'Learning Agreement draft created.'
+        }
+      });
+
+      await tx.auditRecord.create({
+        data: {
+          id: crypto.randomUUID(),
+          actorId: input.userId,
+          actionType: 'LEARNING_AGREEMENT_CREATED',
+          targetType: 'LearningAgreement',
+          targetId: agreement.id,
+          newState: AgreementState.DRAFT,
+          outcome: 'SUCCESS'
+        }
+      });
+
+      return agreement;
     });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const existing = await prisma.learningAgreement.findUnique({
+        where: { mobilityRecordId: mobilityRecord.id }
+      });
+      if (existing) return existing;
+    }
 
-    await tx.learningAgreementEvent.create({
-      data: {
-        id: crypto.randomUUID(),
-        agreementId: agreement.id,
-        actorId: input.userId,
-        actionType: 'AGREEMENT_CREATED',
-        toState: AgreementState.DRAFT,
-        noteOrRationale: 'Learning Agreement draft created.'
-      }
-    });
-
-    await tx.auditRecord.create({
-      data: {
-        id: crypto.randomUUID(),
-        actorId: input.userId,
-        actionType: 'LEARNING_AGREEMENT_CREATED',
-        targetType: 'LearningAgreement',
-        targetId: agreement.id,
-        newState: AgreementState.DRAFT,
-        outcome: 'SUCCESS'
-      }
-    });
-
-    return agreement;
-  });
+    throw error;
+  }
 }
 
 export async function getAgreementDetail(input: { agreementId: string; userId: string }) {
@@ -370,11 +381,14 @@ export async function submitAgreement(input: { agreementId: string; userId: stri
 
     await validateAgreementReadyForSubmit(tx, agreement.id);
 
-    const previous = agreement.state;
-    const updated = await tx.learningAgreement.update({
-      where: { id: agreement.id },
-      data: { state: AgreementState.SUBMITTED, submittedAt: new Date(), version: { increment: 1 } }
+    const submittedAt = new Date();
+    const updateResult = await tx.learningAgreement.updateMany({
+      where: { id: agreement.id, state: AgreementState.DRAFT },
+      data: { state: AgreementState.SUBMITTED, submittedAt, version: { increment: 1 } }
     });
+    assert(updateResult.count > 0, 'Only draft agreements can be submitted', 400);
+
+    const updated = await tx.learningAgreement.findUniqueOrThrow({ where: { id: agreement.id } });
 
     await tx.learningAgreementEvent.create({
       data: {
@@ -382,8 +396,21 @@ export async function submitAgreement(input: { agreementId: string; userId: stri
         agreementId: agreement.id,
         actorId: user.id,
         actionType: 'AGREEMENT_SUBMITTED',
-        fromState: previous,
+        fromState: AgreementState.DRAFT,
         toState: AgreementState.SUBMITTED
+      }
+    });
+
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: user.id,
+        actionType: 'LEARNING_AGREEMENT_SUBMITTED',
+        targetType: 'LearningAgreement',
+        targetId: agreement.id,
+        priorState: AgreementState.DRAFT,
+        newState: AgreementState.SUBMITTED,
+        outcome: 'SUCCESS'
       }
     });
 
@@ -402,9 +429,19 @@ export async function resubmitAgreement(input: { agreementId: string; userId: st
     const deniedLatestRows = agreement.rows.filter((row) => row.isLatest && row.status === RowState.DENIED);
     assert(deniedLatestRows.length === 0, 'Denied rows must be revised before resubmission', 400);
 
-    const updated = await tx.learningAgreement.update({
-      where: { id: agreement.id },
-      data: { state: AgreementState.SUBMITTED, submittedAt: new Date(), version: { increment: 1 } }
+    const submittedAt = new Date();
+    const previousState = agreement.state;
+    const updateResult = await tx.learningAgreement.updateMany({
+      where: {
+        id: agreement.id,
+        state: { in: [AgreementState.CHANGES_REQUESTED, AgreementState.PARTIALLY_APPROVED] }
+      },
+      data: { state: AgreementState.SUBMITTED, submittedAt, version: { increment: 1 } }
+    });
+    assert(updateResult.count > 0, 'Agreement state changed during resubmission; please retry', 409);
+
+    const updated = await tx.learningAgreement.findUniqueOrThrow({
+      where: { id: agreement.id }
     });
 
     await tx.learningAgreementEvent.create({
@@ -413,8 +450,21 @@ export async function resubmitAgreement(input: { agreementId: string; userId: st
         agreementId: agreement.id,
         actorId: user.id,
         actionType: 'AGREEMENT_RESUBMITTED',
-        fromState: agreement.state,
+        fromState: previousState,
         toState: AgreementState.SUBMITTED
+      }
+    });
+
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: user.id,
+        actionType: 'LEARNING_AGREEMENT_RESUBMITTED',
+        targetType: 'LearningAgreement',
+        targetId: agreement.id,
+        priorState: previousState,
+        newState: AgreementState.SUBMITTED,
+        outcome: 'SUCCESS'
       }
     });
 
@@ -445,15 +495,23 @@ export async function decideAgreementRow(input: {
       assert(!!trimmedRationale, 'Deny decision requires rationale', 400);
     }
 
-    await tx.learningAgreementRow.update({
-      where: { id: row.id },
+    const reviewedAt = new Date();
+    const decisionUpdate = await tx.learningAgreementRow.updateMany({
+      where: {
+        id: row.id,
+        agreementId: input.agreementId,
+        isLatest: true,
+        status: RowState.IN_REVIEW,
+        reviewedAt: null
+      },
       data: {
         status: input.decision,
         decisionRationale: input.decision === RowState.DENIED ? trimmedRationale : null,
         reviewedById: user.id,
-        reviewedAt: new Date()
+        reviewedAt
       }
     });
+    assert(decisionUpdate.count > 0, 'Row has already been decided', 409);
 
     const latestRows = await tx.learningAgreementRow.findMany({ where: { agreementId: input.agreementId, isLatest: true } });
     const aggregate = deriveAgreementState(latestRows.map((item) => ({ status: item.status, isLatest: item.isLatest })));
@@ -494,6 +552,19 @@ export async function decideAgreementRow(input: {
         }
       });
     }
+
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: user.id,
+        actionType: input.decision === RowState.APPROVED ? 'LEARNING_AGREEMENT_ROW_APPROVED' : 'LEARNING_AGREEMENT_ROW_DENIED',
+        targetType: 'LearningAgreementRow',
+        targetId: row.id,
+        priorState: RowState.IN_REVIEW,
+        newState: input.decision,
+        outcome: 'SUCCESS'
+      }
+    });
   });
 }
 
