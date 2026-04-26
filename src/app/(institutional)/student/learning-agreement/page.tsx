@@ -16,7 +16,7 @@ type Row = {
   id: string;
   rowKey: string;
   revision: number;
-  status: string;
+  status: 'IN_REVIEW' | 'APPROVED' | 'DENIED';
   decisionRationale?: string | null;
   homeCourseCode: string;
   homeCourseName: string;
@@ -35,14 +35,27 @@ type Agreement = {
   permissions: { canEdit: boolean; canSubmit: boolean; canResubmit: boolean };
 };
 
+type Filter = 'ALL' | 'DENIED' | 'IN_REVIEW' | 'APPROVED';
+
 const emptyRow = {
   homeCourseCode: '',
   homeCourseName: '',
   destinationCourseCode: '',
   destinationCourseName: '',
   ects: '6',
-  semester: 'Semester 1',
-  grade: ''
+  semester: 'Semester 1'
+};
+
+const statusStyles: Record<Row['status'], string> = {
+  IN_REVIEW: 'bg-amber-50 text-amber-800 border-amber-200',
+  APPROVED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  DENIED: 'bg-rose-50 text-rose-800 border-rose-200'
+};
+
+const rowStyles: Record<Row['status'], string> = {
+  IN_REVIEW: 'border-amber-200 bg-amber-50/40',
+  APPROVED: 'border-emerald-200 bg-emerald-50/30',
+  DENIED: 'border-rose-300 bg-rose-50/60'
 };
 
 export default function StudentLearningAgreementPage() {
@@ -52,9 +65,11 @@ export default function StudentLearningAgreementPage() {
   const [agreement, setAgreement] = useState<Agreement | null>(null);
   const [form, setForm] = useState(emptyRow);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>('ALL');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   async function ensureAgreement() {
     const response = await fetch('/api/learning-agreements', {
@@ -91,18 +106,32 @@ export default function StudentLearningAgreementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  const deniedLatest = useMemo(() => agreement?.rows.filter((row) => row.status === 'DENIED') || [], [agreement]);
+  const deniedRows = useMemo(() => agreement?.rows.filter((row) => row.status === 'DENIED') || [], [agreement]);
+
+  const visibleRows = useMemo(() => {
+    if (!agreement) return [];
+    if (filter === 'ALL') return agreement.rows;
+    return agreement.rows.filter((row) => row.status === filter);
+  }, [agreement, filter]);
+
+  const stats = useMemo(() => {
+    const rows = agreement?.rows ?? [];
+    const denied = rows.filter((row) => row.status === 'DENIED').length;
+    const approved = rows.filter((row) => row.status === 'APPROVED').length;
+    const inReview = rows.filter((row) => row.status === 'IN_REVIEW').length;
+    return { denied, approved, inReview, total: rows.length };
+  }, [agreement]);
 
   function beginEdit(row: Row) {
     setEditingId(row.id);
+    setSuccess(null);
     setForm({
       homeCourseCode: row.homeCourseCode,
       homeCourseName: row.homeCourseName,
       destinationCourseCode: row.destinationCourseCode,
       destinationCourseName: row.destinationCourseName,
       ects: String(row.ects),
-      semester: row.semester,
-      grade: row.grade || ''
+      semester: row.semester
     });
   }
 
@@ -115,6 +144,8 @@ export default function StudentLearningAgreementPage() {
     if (!agreement) return;
     setSaving(true);
     setError(null);
+    setSuccess(null);
+
     const payload = {
       userId,
       row: {
@@ -123,8 +154,7 @@ export default function StudentLearningAgreementPage() {
         destinationCourseCode: form.destinationCourseCode,
         destinationCourseName: form.destinationCourseName,
         ects: Number(form.ects),
-        semester: form.semester,
-        grade: form.grade || null
+        semester: form.semester
       }
     };
 
@@ -143,6 +173,7 @@ export default function StudentLearningAgreementPage() {
       if (!response.ok) {
         setError(data.error || 'Failed to save row');
       } else {
+        setSuccess(editingId ? 'Row revision saved for review.' : 'New equivalence row added.');
         resetForm();
         await load();
       }
@@ -156,6 +187,7 @@ export default function StudentLearningAgreementPage() {
   async function removeRow(rowId: string) {
     if (!agreement) return;
     setSaving(true);
+    setSuccess(null);
     try {
       const response = await fetch(`/api/learning-agreements/${agreement.id}/rows/${rowId}`, {
         method: 'DELETE',
@@ -166,6 +198,7 @@ export default function StudentLearningAgreementPage() {
       if (!response.ok) {
         setError(data.error || 'Failed to remove row');
       } else {
+        setSuccess('Draft row removed.');
         await load();
       }
     } catch {
@@ -179,6 +212,7 @@ export default function StudentLearningAgreementPage() {
     if (!agreement) return;
     setSaving(true);
     setError(null);
+    setSuccess(null);
     try {
       const response = await fetch(`/api/learning-agreements/${agreement.id}/${action}`, {
         method: 'POST',
@@ -186,7 +220,11 @@ export default function StudentLearningAgreementPage() {
         body: JSON.stringify({ userId })
       });
       const data = await response.json();
-      if (!response.ok) setError(data.error || 'Transition failed');
+      if (!response.ok) {
+        setError(data.error || 'Transition failed');
+      } else {
+        setSuccess(action === 'submit' ? 'Agreement submitted for coordinator review.' : 'Revised rows resubmitted successfully.');
+      }
       await load();
     } catch {
       setError('Transition failed');
@@ -198,42 +236,48 @@ export default function StudentLearningAgreementPage() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-2">
           <CardTitle>My Learning Agreement (Course Equivalences)</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Build a complete academic equivalence proposal, track coordinator decisions row-by-row, and revise denied rows before resubmission.
+          </p>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Structured academic-equivalence workflow with row-level coordinator decisions and safe revisions.
-        </CardContent>
       </Card>
 
       {loading ? <LoadingState /> : null}
       {error ? <ErrorState message={error} /> : null}
+      {success ? <p className="rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</p> : null}
 
       {agreement ? (
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
-                <span>Agreement Status</span>
-                <Badge>{agreement.state}</Badge>
+              <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+                <span>Workflow Status</span>
+                <Badge className="border border-slate-300 bg-slate-50 text-slate-700">{agreement.state}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {deniedLatest.length ? (
-                <p className="rounded border border-red-300 bg-red-50 p-2 text-red-700">
-                  {deniedLatest.length} denied row(s) still require revision before resubmission.
-                </p>
+            <CardContent className="space-y-3 text-sm">
+              <div className="grid gap-2 sm:grid-cols-4">
+                <div className="rounded border bg-slate-50 p-2">Total Rows: <span className="font-semibold">{stats.total}</span></div>
+                <div className="rounded border bg-emerald-50 p-2">Approved: <span className="font-semibold">{stats.approved}</span></div>
+                <div className="rounded border bg-amber-50 p-2">In review: <span className="font-semibold">{stats.inReview}</span></div>
+                <div className="rounded border bg-rose-50 p-2">Denied: <span className="font-semibold">{stats.denied}</span></div>
+              </div>
+
+              {deniedRows.length ? (
+                <div className="rounded border border-rose-300 bg-rose-50 p-3 text-rose-900">
+                  <p className="font-medium">Resubmission blocked until denied rows are revised.</p>
+                  <p className="text-xs">{deniedRows.length} denied row(s) still require changes with updated course data.</p>
+                </div>
               ) : null}
-              <div className="flex gap-2">
+
+              <div className="flex flex-wrap gap-2">
                 {agreement.permissions.canSubmit ? (
-                  <Button disabled={saving} onClick={() => transition('submit')}>
-                    Submit for Review
-                  </Button>
+                  <Button disabled={saving} onClick={() => transition('submit')}>Submit for Review</Button>
                 ) : null}
                 {agreement.permissions.canResubmit ? (
-                  <Button disabled={saving} onClick={() => transition('resubmit')}>
-                    Resubmit Revised Rows
-                  </Button>
+                  <Button disabled={saving} onClick={() => transition('resubmit')}>Resubmit Revised Rows</Button>
                 ) : null}
               </div>
             </CardContent>
@@ -242,7 +286,7 @@ export default function StudentLearningAgreementPage() {
           {agreement.permissions.canEdit ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{editingId ? 'Edit Row Revision' : 'Add New Equivalence Row'}</CardTitle>
+                <CardTitle className="text-base">{editingId ? 'Revise Existing Row' : 'Add Equivalence Row'}</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-2 md:grid-cols-2">
                 <Input placeholder="Home course code" value={form.homeCourseCode} onChange={(e) => setForm((p) => ({ ...p, homeCourseCode: e.target.value }))} />
@@ -251,12 +295,10 @@ export default function StudentLearningAgreementPage() {
                 <Input placeholder="Destination course name" value={form.destinationCourseName} onChange={(e) => setForm((p) => ({ ...p, destinationCourseName: e.target.value }))} />
                 <Input placeholder="ECTS" value={form.ects} onChange={(e) => setForm((p) => ({ ...p, ects: e.target.value }))} />
                 <Input placeholder="Semester" value={form.semester} onChange={(e) => setForm((p) => ({ ...p, semester: e.target.value }))} />
-                <Input className="md:col-span-2" placeholder="Optional grade" value={form.grade} onChange={(e) => setForm((p) => ({ ...p, grade: e.target.value }))} />
+                <Input className="md:col-span-2" value="Grade is coordinator-managed" disabled readOnly />
                 <div className="md:col-span-2 flex gap-2">
                   <Button disabled={saving} onClick={saveRow}>{editingId ? 'Save Revision' : 'Add Row'}</Button>
-                  {editingId ? (
-                    <Button variant="outline" onClick={resetForm}>Cancel</Button>
-                  ) : null}
+                  {editingId ? <Button variant="outline" onClick={resetForm}>Cancel</Button> : null}
                 </div>
               </CardContent>
             </Card>
@@ -264,39 +306,64 @@ export default function StudentLearningAgreementPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Latest Row Revisions</CardTitle>
+              <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+                <span>Equivalence Rows</span>
+                <div className="flex flex-wrap gap-2">
+                  {(['ALL', 'DENIED', 'IN_REVIEW', 'APPROVED'] as Filter[]).map((value) => (
+                    <Button key={value} size="sm" variant={filter === value ? 'default' : 'outline'} onClick={() => setFilter(value)}>
+                      {value === 'ALL' ? 'All rows' : value.replace('_', ' ').toLowerCase()}
+                    </Button>
+                  ))}
+                </div>
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {!agreement.rows.length ? <EmptyState title="No rows yet" hint="Add your first course equivalence row." /> : null}
-              {agreement.rows.map((row) => (
-                <div key={row.id} className="rounded border p-3">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="font-medium">{row.homeCourseCode} → {row.destinationCourseCode}</p>
-                    <Badge>{row.status}</Badge>
-                  </div>
-                  <p>{row.homeCourseName} ⇄ {row.destinationCourseName}</p>
-                  <p className="text-xs text-muted-foreground">ECTS: {row.ects} · Semester: {row.semester} · Revision {row.revision}</p>
-                  {row.decisionRationale ? <p className="mt-1 text-xs text-red-700">Coordinator rationale: {row.decisionRationale}</p> : null}
-                  {agreement.permissions.canEdit ? (
-                    <div className="mt-2 flex gap-2">
-                      <Button variant="outline" onClick={() => beginEdit(row)}>Edit</Button>
-                      {agreement.state === 'DRAFT' ? (
-                        <Button variant="destructive" onClick={() => removeRow(row.id)}>Remove</Button>
+            <CardContent className="space-y-3 text-sm">
+              {!agreement.rows.length ? (
+                <EmptyState title="No rows yet" hint="Add your first equivalence row to begin the Learning Agreement workflow." />
+              ) : !visibleRows.length ? (
+                <EmptyState title="No rows in this filter" hint="Change filters to review all rows." />
+              ) : (
+                <div className="space-y-2">
+                  {visibleRows.map((row) => (
+                    <div key={row.id} className={`rounded border p-3 ${rowStyles[row.status]}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">{row.homeCourseCode} → {row.destinationCourseCode}</p>
+                        <Badge className={`border ${statusStyles[row.status]}`}>{row.status.replace('_', ' ')}</Badge>
+                      </div>
+                      <p>{row.homeCourseName} ⇄ {row.destinationCourseName}</p>
+                      <p className="text-xs text-muted-foreground">ECTS {row.ects} · {row.semester} · Revision {row.revision}</p>
+                      <p className="text-xs text-muted-foreground">Grade (read-only): {row.grade || 'Not assigned yet'}</p>
+                      {row.status === 'DENIED' ? (
+                        <p className="mt-2 rounded border border-rose-300 bg-rose-100 p-2 text-xs text-rose-800">
+                          Coordinator rationale: {row.decisionRationale || 'No rationale captured.'}
+                        </p>
+                      ) : null}
+                      {agreement.permissions.canEdit ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" disabled={saving} onClick={() => beginEdit(row)}>Revise row</Button>
+                          {agreement.state === 'DRAFT' ? (
+                            <Button size="sm" variant="destructive" disabled={saving} onClick={() => removeRow(row.id)}>Remove</Button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
-                  ) : null}
+                  ))}
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Workflow Event History</CardTitle>
+              <CardTitle className="text-base">Recent Workflow Activity</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1 text-xs">
-              {agreement.events.map((event) => (
-                <p key={event.id}>{new Date(event.createdAt).toLocaleString()} · {event.actor.fullName} · {event.actionType}{event.noteOrRationale ? ` (${event.noteOrRationale})` : ''}</p>
+            <CardContent className="space-y-2 text-xs text-muted-foreground">
+              {!agreement.events.length ? <p>No activity yet.</p> : agreement.events.slice(0, 6).map((event) => (
+                <div key={event.id} className="rounded border p-2">
+                  <p className="font-medium text-slate-700">{event.actionType.replaceAll('_', ' ')}</p>
+                  <p>{new Date(event.createdAt).toLocaleString()} · {event.actor.fullName}</p>
+                  {event.noteOrRationale ? <p className="mt-1 text-slate-600">{event.noteOrRationale}</p> : null}
+                </div>
               ))}
             </CardContent>
           </Card>
