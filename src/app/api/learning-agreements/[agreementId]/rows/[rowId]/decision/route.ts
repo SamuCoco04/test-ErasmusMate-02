@@ -14,7 +14,8 @@ export async function POST(request: NextRequest, { params }: { params: { agreeme
       rowId: params.rowId,
       userId: payload.userId,
       decision: payload.decision,
-      rationale: payload.rationale
+      rationale: payload.rationale,
+      grade: payload.grade
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

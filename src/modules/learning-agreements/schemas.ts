@@ -11,14 +11,13 @@ export const agreementStateSchema = z.enum([
 
 export const rowDecisionSchema = z.enum(['APPROVED', 'DENIED']);
 
-const rowInputSchema = z.object({
+const studentRowInputSchema = z.object({
   homeCourseCode: z.string().trim().min(1).max(50),
   homeCourseName: z.string().trim().min(1).max(200),
   destinationCourseCode: z.string().trim().min(1).max(50),
   destinationCourseName: z.string().trim().min(1).max(200),
   ects: z.number().gt(0).max(60),
-  semester: z.string().trim().min(1).max(50),
-  grade: z.string().trim().max(20).nullable().optional()
+  semester: z.string().trim().min(1).max(50)
 });
 
 export const createAgreementSchema = z.object({
@@ -28,12 +27,12 @@ export const createAgreementSchema = z.object({
 
 export const addRowSchema = z.object({
   userId: z.string().min(1),
-  row: rowInputSchema
+  row: studentRowInputSchema
 });
 
 export const updateRowSchema = z.object({
   userId: z.string().min(1),
-  row: rowInputSchema
+  row: studentRowInputSchema
 });
 
 export const removeRowSchema = z.object({
@@ -47,5 +46,6 @@ export const transitionAgreementSchema = z.object({
 export const decideRowSchema = z.object({
   userId: z.string().min(1),
   decision: rowDecisionSchema,
-  rationale: z.string().trim().max(1000).optional()
+  rationale: z.string().trim().max(1000).optional(),
+  grade: z.string().trim().max(20).nullable().optional()
 });

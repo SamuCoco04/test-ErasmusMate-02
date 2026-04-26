@@ -42,7 +42,6 @@ function hasRowChange(source: LearningAgreementRow, next: {
   destinationCourseName: string;
   ects: number;
   semester: string;
-  grade?: string | null;
 }) {
   return (
     source.homeCourseCode !== next.homeCourseCode ||
@@ -50,8 +49,7 @@ function hasRowChange(source: LearningAgreementRow, next: {
     source.destinationCourseCode !== next.destinationCourseCode ||
     source.destinationCourseName !== next.destinationCourseName ||
     source.ects !== next.ects ||
-    source.semester !== next.semester ||
-    (source.grade ?? null) !== normalizeGrade(next.grade)
+    source.semester !== next.semester
   );
 }
 
@@ -205,7 +203,6 @@ export async function addAgreementRow(input: {
     destinationCourseName: string;
     ects: number;
     semester: string;
-    grade?: string | null;
   };
 }) {
   return prisma.$transaction(async (tx) => {
@@ -225,7 +222,6 @@ export async function addAgreementRow(input: {
         destinationCourseName: input.row.destinationCourseName,
         ects: input.row.ects,
         semester: input.row.semester,
-        grade: normalizeGrade(input.row.grade),
         status: RowState.IN_REVIEW
       }
     });
@@ -256,7 +252,6 @@ export async function updateAgreementRow(input: {
     destinationCourseName: string;
     ects: number;
     semester: string;
-    grade?: string | null;
   };
 }) {
   return prisma.$transaction(async (tx) => {
@@ -281,8 +276,7 @@ export async function updateAgreementRow(input: {
           destinationCourseCode: input.row.destinationCourseCode,
           destinationCourseName: input.row.destinationCourseName,
           ects: input.row.ects,
-          semester: input.row.semester,
-          grade: normalizeGrade(input.row.grade)
+          semester: input.row.semester
         }
       });
 
@@ -315,7 +309,7 @@ export async function updateAgreementRow(input: {
         destinationCourseName: input.row.destinationCourseName,
         ects: input.row.ects,
         semester: input.row.semester,
-        grade: normalizeGrade(input.row.grade),
+        grade: source.grade,
         status: RowState.IN_REVIEW,
         decisionRationale: null,
         reviewedById: null,
@@ -478,6 +472,7 @@ export async function decideAgreementRow(input: {
   userId: string;
   decision: 'APPROVED' | 'DENIED';
   rationale?: string;
+  grade?: string | null;
 }) {
   return prisma.$transaction(async (tx) => {
     const { user, agreement } = await getAgreementForActor(tx, input.agreementId, input.userId);
@@ -507,6 +502,7 @@ export async function decideAgreementRow(input: {
       data: {
         status: input.decision,
         decisionRationale: input.decision === RowState.DENIED ? trimmedRationale : null,
+        grade: input.grade !== undefined ? normalizeGrade(input.grade) : row.grade,
         reviewedById: user.id,
         reviewedAt
       }
