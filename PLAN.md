@@ -1,595 +1,519 @@
-# ErasmusMate — Full Execution Plan
+# ErasmusMate — PLAN.md
 
-## Purpose
-Build ErasmusMate from zero as a **workflow-driven, full-stack, locally runnable, client-presentable product demo**.
+## Iteration context
+This plan replaces the previous first-iteration execution plan as the **current main plan** for the second iteration.
 
-This repository starts from:
-- `AGENTS.md`
-- `/artifacts`
-- `/figma`
+This iteration is focused on:
+- improving product quality
+- improving visual alignment with the mockups
+- refining the institutional core
+- preserving the existing institutional + social baseline
+- adding a realistic structured academic workflow for course equivalences
+- keeping the product locally runnable, backend-backed, and demo-ready
 
-Implementation must be driven primarily by the **approved workflows**, with requirements defining scope and business rules defining constraints.
-
-The project has two clearly separated layers:
-1. **Institutional / manual-assisted Erasmus mobility management core**
-2. **Secondary social-support layer**
-
-The institutional core must remain primary in:
-- architecture
-- navigation
-- implementation order
-- product emphasis
-
-The social-support layer must remain secondary, clearly separated, and must not distort official workflows.
+This is **not** a full platform redesign.
 
 ---
 
-## Planning principles
+# 1. Executive recommendation
 
-### Build around workflows first
-The safest approach is to build around **stateful workflows first**, then fit:
-- UI
-- API
-- database
-- services
-- validation
+Implement this as a second-iteration institutional refinement called a **Learning Agreement workflow (table-first)**.
 
-to those workflows.
-
-Do **not** build primarily by screen or Figma page.
-
-### Backend must arrive early
-Backend and persistence must be introduced early enough to avoid:
-- decorative frontend behavior
-- disconnected state transitions
-- rework caused by late integration
-
-### Architecture and patterns are allowed
-Implementation may make strong technical decisions when the artifacts do not prescribe every detail, provided that:
-- scope remains faithful to the approved artifacts
-- architecture stays maintainable
-- the product remains locally runnable and demo-ready
+## Recommended approach
+- Add a new structured academic workflow inside the institutional core.
+- Keep the current institutional and social baseline intact.
+- Start with a **minimal auditable model**:
+  - proposal
+  - rows
+  - events
+- Use a **derived summary view** in `My Mobility Record` first.
+- Do **not** introduce an early materialized snapshot unless later justified.
+- Treat UI quality and coordinator ergonomics as first-class iteration goals.
+- Keep all other institutional procedures on the current upload/review model.
 
 ---
 
-# 0. Root-cause analysis of likely instability
+# 2. Recommended naming and product framing
 
-## Why projects like this fail early
+## UX-facing naming
+Recommended labels:
 
-### Screen-first implementation drift
-Building directly from Figma pages often creates:
-- disconnected behavior
-- fake workflows
-- missing state transitions
-- poor frontend/backend coherence
+- **Editable artifact:** Learning Agreement (Course Equivalences)
+- **Student working page:** My Learning Agreement
+- **Coordinator page:** Learning Agreement Review
+- **Final read-only view:** Mobility Record – Academic Summary
 
-### Institutional/social boundary collapse
-If social features are mixed into institutional navigation:
-- official workflows become confusing
-- compliance-sensitive behavior becomes harder to maintain
-- role boundaries weaken
+## Product framing
+`My Mobility Record` remains the umbrella institutional page.
 
-### State model mismatch between frontend and backend
-Core workflows contain strict state transitions for:
-- submissions
-- reviews
-- reopen/resubmit
-- exceptions
-- deadlines
-- moderation
-- social connections
+Inside it, clearly separate:
 
-If the UI shows states not enforced by backend guards and persistence:
-- invalid transitions become possible
-- data becomes inconsistent
-- demos fail in real usage
+1. **Learning Agreement**
+   - editable / reviewable workflow artifact
+   - row-based academic equivalence proposal
 
-### Late persistence integration
-If backend is postponed:
-- frontend becomes decorative
-- navigation works superficially but not semantically
-- refactor cost increases sharply
+2. **Academic Summary**
+   - read-only polished view
+   - derived from approved latest rows
+   - official-looking institutional summary
 
-### Map treated as placeholder
-The map is not optional polish.
-It must be implemented as a **real functional feature** with:
-- filtering
-- place-context data
-- moderation/privacy constraints
-- safe visibility rules
-
-It must **not** remain a static or fake mock.
+This keeps the Erasmus language natural and avoids overly technical labels.
 
 ---
 
-# 1. Recommended architecture
+# 3. Refined workflow model
 
-## 1.1 Repository shape
-Use a **single Next.js application** with App Router.
+## Student workflow
+1. Create or edit Learning Agreement rows.
+2. Save draft.
+3. Submit for coordinator review.
+4. Receive row-level outcomes:
+   - approved
+   - denied
+5. Revise denied rows.
+6. Optionally revise previously approved rows using safe revision semantics.
+7. Resubmit.
+8. Once accepted, view approved rows in Academic Summary.
 
-Do **not** split into multiple apps unless a strong reason appears later.
+## Coordinator workflow
+1. Open Learning Agreement Review queue/detail.
+2. Review rows individually.
+3. Approve or deny each row.
+4. Deny requires rationale.
+5. Optionally leave review notes/rationales visible to student.
+6. Finalize aggregate proposal outcome:
+   - accepted
+   - partially approved
+   - changes requested
 
-### Route groups
-- `app/(institutional)/student/...`
-- `app/(institutional)/coordinator/...`
-- `app/(institutional)/admin/...`
-- `app/(social)/student/...`
+## Safe approved-row edit rule
+If a student edits an already approved row:
 
-### Module structure
-- `src/modules/institutional/*`
-- `src/modules/social/*`
-- `src/modules/shared/*`
+- do **not** mutate the approved row in place
+- create a **new revision row**
+- new revision row returns to review state
+- previous approved row remains immutable historical evidence
 
-### Persistence
-- Prisma
-- SQLite
-- migrations
-- deterministic seed data
-
-### API
-- Next.js route handlers under `app/api/*`
-
-### Validation
-- Zod schemas shared across:
-  - forms
-  - request parsing
-  - API boundaries
-  - workflow inputs
-
-## 1.2 Layered architecture
-### UI layer
-- Next.js pages/layouts
-- shadcn/ui
-- React Hook Form
-- role-aware navigation
-- clear institutional/social separation
-
-### Application layer
-- services implementing workflow use cases
-- orchestration of operations
-- transaction entry points
-
-### Domain layer
-- transition guards
-- policy checks
-- business constraints
-- state logic
-- workflow semantics
-
-### Infrastructure layer
-- Prisma repositories
-- map adapter
-- notification/outbox adapter
-- persistence helpers
-- seed setup
+This rule is mandatory.
 
 ---
 
-# 2. Recommended design patterns
+# 4. Minimal viable data model
 
-## Workflow engine-lite
-Use explicit transition maps per aggregate for:
-- document submissions
-- exceptions
-- mobility records
-- social connections
-- moderation cases
+The first implementation slice should use only what is necessary.
 
-This prevents invalid transitions and centralizes lifecycle logic.
+## Core entities
 
-## Repository + Service separation
-Keep Prisma access out of higher-level business logic.
-Use repositories for persistence and services for use cases.
+### LearningAgreement
+Proposal-level artifact.
 
-## Policy / Guard objects
-Encode permission and constraint logic as reusable guards:
-- role permissions
-- consent
-- visibility
-- moderation
-- deadline checks
-- state transition conditions
+Suggested fields:
+- `id`
+- `mobilityRecordId`
+- `studentId`
+- `coordinatorId`
+- `state`
+- `version`
+- `submittedAt`
+- `lastReviewedAt`
+- `acceptedAt`
+- timestamps
 
-## DTO + Zod boundary
-All request/response and form boundaries should use explicit schemas and DTOs.
+### LearningAgreementRow
+Row-level equivalence proposal.
 
-## Audit-first command handlers
-Any critical state change should:
-1. validate guard conditions
-2. apply the state transition
-3. write audit trail records
-4. optionally write notification/outbox events
+Suggested fields:
+- `id`
+- `agreementId`
+- `rowKey` (logical row identity across revisions)
+- `revision`
+- `supersedesRowId` (nullable)
+- `isLatest`
+- `homeCourseCode`
+- `homeCourseName`
+- `destinationCourseCode`
+- `destinationCourseName`
+- `ects`
+- `semester`
+- `grade` (nullable, optional, non-governing in first slice)
+- `status`
+- `decisionRationale` (nullable)
+- `reviewedById` (nullable)
+- `reviewedAt` (nullable)
+- timestamps
 
-## Social feature scoping policy
-Feature scoping and enable/disable logic must exist for the social layer.
+### LearningAgreementEvent
+Append-only workflow/event history.
 
----
+Suggested fields:
+- `id`
+- `agreementId`
+- `rowId` (nullable when event is agreement-level)
+- `actorId`
+- `actionType`
+- `fromState` (nullable)
+- `toState` (nullable)
+- `noteOrRationale` (nullable)
+- `createdAt`
 
-# 3. Backend architecture
+## Why this is enough
+This model supports:
+- draft/edit/submit
+- row-level review
+- denial rationale
+- partial approval
+- safe approved-row revisions
+- auditable history
 
-## 3.1 Domain modules
-
-### Institutional
-- mobility-record
-- procedure-definition
-- document-submission
-- signature-routing
-- deadline-governance
-- exception-request
-- delegation
-
-### Social
-- social-profile
-- discovery-connection
-- messaging
-- recommendations-reviews
-- moderation
-- map-discovery
-
-### Shared
-- auth / RBAC
-- audit
-- notification
-- retention / policy
-- incident handling
-
-## 3.2 API style
-Use **workflow-oriented route handlers**, not page-oriented handlers.
-
-### Reads
-- `GET` list/detail endpoints
-
-### Mutations
-- `POST` / `PATCH` endpoints for:
-  - state-changing operations
-  - creation flows
-  - moderation/reporting
-  - decision actions
-
-Server actions may be used only where tightly coupled and clearly beneficial, but core logic must remain in services.
-
-## 3.3 Transaction strategy
-All status-changing operations should use transactions.
-
-Transaction shape:
-1. validate guards
-2. validate current state
-3. apply transition
-4. write workflow event history
-5. write audit record
-6. write notification/outbox event when needed
-
-On integration-style failure, preserve pre-action consistency.
+without introducing unnecessary complexity too early.
 
 ---
 
-# 4. First database entities to implement
+# 5. Deferred / optional later-model extensions
 
-## Phase 1 schema — minimum viable institutional core
-- `UserAccount`
-- `RoleAssignment`
-- `Institution`
-- `MobilityRecord`
-- `MobilityContext`
-- `ProcedureDefinition`
-- `ProcedureVersion`
-- `ProcedureApplicabilityRule`
-- `DocumentSubmission`
-- `SubmittedDocumentVersion`
-- `Deadline`
-- `OfficialObligation`
-- `ExceptionRequest`
-- `AuditRecord`
-- `OfficialNotificationRecord`
+Defer these unless implementation proves they are necessary:
 
-## Phase 2 schema — social layer
-- `SocialSupportProfile`
-- `SocialVisibilitySettings`
-- `SocialConsentSettings`
-- `SocialConnection`
-- `MessageThread`
-- `Message`
-- `Recommendation`
-- `Opinion`
-- `Favorite`
-- `PlaceContext`
-- `ModerationReport`
-- `ModerationCase`
-- `SocialAuditEvent` or unified audit approach with domain tagging
+- separate `LearningAgreementRowDecision` table
+- separate threaded comment entity
+- materialized `PublishedAcademicPlan` snapshot table
+- advanced grade history entity
+- bulk-decision tooling
+- rubric-like metadata
 
-### Notes
-For map support:
-- `PlaceContext` must represent only **public, Erasmus-relevant, safe place references**
-- no private address exposure
-- no unsafe personal location data
-- no live tracking
+## Rationale
+The second iteration should remain pragmatic and implementable.
+Start with the smallest correct model.
 
 ---
 
-# 5. First API endpoints to implement
+# 6. API plan
 
-## Institutional-first MVP APIs
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/mobility-records/:id`
-- `GET /api/procedures/applicable?mobilityRecordId=...`
-- `POST /api/submissions`
-- `PATCH /api/submissions/:id/submit`
-- `PATCH /api/submissions/:id/review`
-- `PATCH /api/submissions/:id/reopen`
-- `POST /api/exceptions`
-- `PATCH /api/exceptions/:id/decision`
-- `GET /api/coordinator/review-queue`
-- `GET /api/deadlines`
-- `GET /api/audit/:entityType/:entityId`
+Use an institutional namespace such as:
 
-## Social second-wave APIs
-- `GET /api/social/discover`
-- `POST /api/social/connections`
-- `PATCH /api/social/connections/:id/respond`
-- `POST /api/social/messages`
-- `POST /api/social/recommendations`
-- `POST /api/social/opinions`
-- `POST /api/social/reports`
-- `GET /api/social/map/items`
-- `GET /api/social/map/items/:id`
-- `POST /api/social/map/items/:id/report`
+- `/api/learning-agreements/*`
 
----
+## Core endpoints
 
-# 6. Workflow-driven implementation order
+### Agreement lifecycle
+- `POST /api/learning-agreements`
+  - create draft agreement for a mobility record, or return active draft
 
-Implementation order must follow workflows, not isolated screens.
+- `GET /api/learning-agreements/:id`
+  - agreement detail for authorized student/coordinator/admin
+  - returns agreement, latest rows, event history, permissions
 
-## Institutional-first
-1. `WF-014` + RBAC base (auth/account bootstrap)
-2. `WF-001` Mobility lifecycle read model
-3. `WF-003` Submission flow
-4. `WF-006` Deadline governance
-5. `WF-005` Exception requests
-6. `WF-015` Delegation (if achievable in institutional milestone)
+- `PATCH /api/learning-agreements/:id`
+  - update agreement metadata if needed
 
-## Social second
-7. `WF-009` Social profile / consent gating
-8. `WF-010` Discovery + connection lifecycle
-9. `WF-011` Accepted-connection messaging
-10. `WF-012` Recommendations / opinions / favorites
-11. `WF-013` Moderation queue + threshold handling
-12. `WF-008` Map-based social discovery
+### Row operations
+- `POST /api/learning-agreements/:id/rows`
+  - add row
 
-## Final hardening
-13. hardening
-14. observability
-15. demo scripts
-16. presentation polish
+- `PATCH /api/learning-agreements/:id/rows/:rowId`
+  - edit row
+  - if row is approved, create new revision row instead of mutating in place
 
----
+### Workflow transitions
+- `POST /api/learning-agreements/:id/submit`
+  - submit for review
 
-# 7. Map integration choice
+- `POST /api/learning-agreements/:id/rows/:rowId/decision`
+  - coordinator approve/deny row
+  - deny requires rationale
 
-## Recommended choice
-- Leaflet
-- React-Leaflet
-- OpenStreetMap tiles  
-  or equivalent public-safe tile provider if a key is required
+- `POST /api/learning-agreements/:id/resubmit`
+  - resubmit after denied-row revision checks
 
-## Why this choice
-- low complexity
-- good local demo fit
-- stable ecosystem
-- good support for marker rendering and filtering
-- easy preview/detail flows
-- no vendor lock-in for the prototype
+### Read models
+- `GET /api/learning-agreements/review-queue?coordinatorId=...`
+  - coordinator queue
 
-## Map rules
-The map must:
-- render real markers
-- support filtering
-- support marker preview/detail
-- support reporting of mapped content
-- respect moderation and visibility rules server-side
+- `GET /api/mobility-records/:id/academic-summary`
+  - derived read model for final summary view
 
-The map must not:
-- do route planning
-- track users in real time
-- expose unsafe private locations
-- behave like a generic tourism app
+## Optional later endpoints
+- reopen endpoint
+- dedicated comments endpoint
+- publish/snapshot endpoint if snapshotting is later introduced
+
+## RBAC requirement
+Endpoints must enforce role access on the backend:
+
+- student detail only for owning student and authorized institutional roles
+- coordinator review/detail only for assigned coordinator and authorized institutional roles
+- academic summary only for owning student and authorized institutional roles
+
+Do not rely on frontend-only protection.
 
 ---
 
-# 8. Task / phase decomposition
+# 7. UI plan
 
-## Phase 0 — Discovery & architecture lock
-- read all approved artifacts
-- extract traceability matrix
-- convert workflows + rules into backlog
-- lock architecture decisions
-- decide route map
-- decide module boundaries
+This is a product-quality iteration, so UX is first-class.
 
-## Phase 1 — Scaffold & foundations
-- Next.js + TypeScript + Tailwind + shadcn/ui + RHF + Zod + Prisma + SQLite
-- base layouts
-- role switch dev mode or initial auth bootstrap
-- error / loading / empty state primitives
-- repository foundation
+## Student experience
 
-## Phase 2 — Institutional core MVP (end-to-end)
-- mobility record dashboard/read model
-- procedure applicability listing
-- submission workflow
-- coordinator review queue
-- decision screens
-- deadline views
-- exception submission/decision
-- audit rendering for critical actions
+### My Learning Agreement
+Table-first editable page with:
+- strong column structure
+- row status badges
+- inline validation
+- clear draft/save/submit actions
+- filters:
+  - all
+  - denied
+  - approved
+  - in review
 
-## Phase 3 — Institutional hardening
-- reopen/resubmit edge cases
-- delegation support
-- simulated integration-style incident handling
-- stronger guards and transitions
+### Resubmission-focused UX
+The student must clearly see:
+- denied rows
+- coordinator rationale
+- what still requires change
+- whether resubmission is currently blocked
 
-## Phase 4 — Social foundation
-- social profile
-- consent / visibility
-- student discovery
-- connection lifecycle
-- accepted-only messaging
+Recommended elements:
+- denied-row highlighting
+- checklist summary
+- “Denied rows still unchanged” warning
+- clear resubmit affordance
 
-## Phase 5 — Content + moderation
-- recommendations / tips / reviews CRUD
-- favorites
-- reporting
-- moderation queue
-- moderation actions
-- threshold hidden behavior
+### Mobility Record – Academic Summary
+Read-only polished institutional summary showing:
+- latest approved rows
+- course equivalences
+- ECTS
+- semester
+- official-looking visual treatment aligned with mockup direction
 
-## Phase 6 — Real map discovery
-- place context catalog
-- backend-filtered map endpoint
-- marker rendering
-- side panel
-- preview-to-detail navigation
-- report action
+## Coordinator experience
 
-## Phase 7 — Demo polish & reliability
-- realistic seed scenarios
-- Student / Coordinator / Admin demo journeys
-- accessibility baseline
-- i18n baseline if feasible
-- visual polish
-- documentation
+### Learning Agreement Review
+Recommended structure:
+- queue/list of agreements needing action
+- detail panel for selected agreement
+- row-by-row review workspace
+- approve/deny per row
+- rationale input required on deny
+- progress indicators:
+  - approved count
+  - denied count
+  - pending count
 
----
+### UX goals
+- minimize clicks
+- make pending work obvious
+- preserve institutional seriousness
+- expose traceability without clutter
 
-# 9. Validation checkpoints after each phase
+## First-slice visibility rule for comments/rationales
+The first slice should support:
+- student-visible denial rationales
+- event notes visible where appropriate
 
-Each phase must pass at least:
-
-- install works
-- build works
-- start works
-- no blocking runtime errors
-- routing is coherent for implemented roles
-- happy path works
-- one negative/rejection/exception path works
-- persistence is refresh-safe where backend exists
-- audit records exist for critical transitions
-- no obvious cross-role access leakage
-- map shows only allowed content (later phases)
-
-No phase should be considered complete if it only “looks good”.
+Internal coordinator-only discussion threads are deferred.
 
 ---
 
-# 10. Risks and trade-offs
+# 8. State model
 
-## Complex institutional state logic
-Risk:
-- workflow states become inconsistent or fragile
+## Record-level states
+Minimal set:
 
-Mitigation:
-- explicit state maps
-- guard objects
-- service-level transition control
+- `DRAFT`
+- `SUBMITTED`
+- `IN_REVIEW`
+- `PARTIALLY_APPROVED`
+- `CHANGES_REQUESTED`
+- `ACCEPTED`
 
-## Overbuilding social too early
-Risk:
-- institutional core remains weak while social adds breadth
+`PUBLISHED` is deferred unless a materialized snapshot is later introduced.
 
-Mitigation:
-- strict institutional-first phase gates
+## Row-level states
+Required set:
 
-## Map privacy / moderation leakage
-Risk:
-- unsafe or unmoderated content reaches the map
+- `IN_REVIEW`
+- `APPROVED`
+- `DENIED`
 
-Mitigation:
-- server-filtered queries only
-- no direct unsafe client joins
-- moderation and visibility checks before render
+## Record-level transitions
+- `DRAFT -> SUBMITTED`
+- `SUBMITTED -> IN_REVIEW`
 
-## Demo fragility
-Risk:
-- product works only in ideal situations
+- `IN_REVIEW -> ACCEPTED`
+  - only if all latest rows are approved
 
-Mitigation:
-- deterministic seeds
-- clear demo scenarios
-- stable dates and data
-- end-to-end test run-throughs
+- `IN_REVIEW -> PARTIALLY_APPROVED`
+  - if latest rows contain both approved and denied outcomes
 
-## Scope creep
-Risk:
-- extra social features dilute delivery quality
+- `IN_REVIEW -> CHANGES_REQUESTED`
+  - if no latest rows are approved, or coordinator explicitly returns the agreement for revision before acceptance
 
-Mitigation:
-- remain inside approved artifacts
-- no feed
-- no route planning
-- no real-time tracking
-- no unrelated lifestyle expansion
+- `PARTIALLY_APPROVED -> SUBMITTED`
+  - on valid resubmission
 
----
+- `CHANGES_REQUESTED -> SUBMITTED`
+  - on valid resubmission
 
-# 11. Recommended first implementation phase
+## Row-level transitions
+- `IN_REVIEW -> APPROVED`
+- `IN_REVIEW -> DENIED`
 
-## Phase 1 target
-Scaffold + institutional workflow skeleton backed by real persistence.
+- denied-row revision:
+  - prior denied row remains as history
+  - new latest row revision becomes reviewable again
 
-### First sprint goals
-- boot app with role-aware layouts and route groups
-- Prisma schema + migrations for core institutional entities
-- deterministic seed data
-- implement `WF-003` minimal end-to-end:
-  - student draft
-  - student submit
-  - coordinator approve/reject with rationale
-  - reopen
-  - resubmit
-  - audit trail creation
+- approved-row edit:
+  - old approved row stays immutable
+  - new latest revision enters review again
 
-## Why this first
-It gives the fastest proof of:
-- real backend-backed institutional value
-- workflow-driven implementation
-- local demo credibility
-- reduced project risk early
+## Important clarification
+Rows belong to an agreement that may be in `DRAFT`, but the row-level review lifecycle becomes meaningful once the agreement enters a review cycle.
+Do not invent in-place mutable approved states.
 
 ---
 
-# Implementation guardrails
+# 9. Validation and workflow rules
 
-## Must do
-- follow workflows
-- keep institutional core primary
-- backend early
-- map real, not fake
-- make architectural decisions when needed
-- split into as many tasks as needed if that improves quality
+## Required row fields
+Each row must require:
+- home course code
+- home course name
+- destination course code
+- destination course name
+- ECTS
+- semester
 
-## Must not do
-- redesign the product from scratch
-- build by screen only
-- leave backend until the end
-- mix institutional and social navigation
-- implement route planning
-- implement real-time tracking
-- expose private location data
-- replace working architecture with hacks for speed
+## Grade rule
+For the first slice:
+- `grade` is optional
+- `grade` is nullable
+- `grade` is non-governing
+- `grade` must not be required for agreement approval
+
+This avoids mixing equivalence planning with final recognition too early.
+
+## Submission guards
+Submission must be blocked if:
+- the agreement has zero rows
+- required row fields are missing
+- invalid ECTS or semester values exist
+- duplicate/conflicting equivalence rows exist
+- latest rows fail schema validation
+
+## Decision guards
+A coordinator decision must be blocked if:
+- coordinator is not authorized for that agreement
+- row is not latest revision
+- row is incomplete
+- deny is attempted without rationale
+
+## Resubmission guard
+If any latest row is denied:
+- the student must revise denied rows before resubmitting
+
+“Revise” must mean:
+- actual row change
+- or explicit replacement revision
+
+A denied row must not be resubmitted unchanged.
+
+## Aggregate-state computation rule
+The record-level state must always be computed from **latest row revisions**, not from stale historical rows.
 
 ---
 
-# Definition of done
-The project is considered ready when it becomes a **locally runnable, reliable, client-presentable full-stack prototype**.
+# 10. Integration with existing institutional flows
 
-That means:
-- app runs locally
-- frontend and backend communicate correctly
-- core institutional workflows work end-to-end
-- social workflows work end-to-end
-- map is real and functional
-- navigation is coherent
-- seed scenarios support a reliable demo
-- product feels like a working system, not a collection of mock screens
+## Coexistence rule
+This workflow replaces the generic upload/review model **only for the academic-equivalence / Learning Agreement process**.
+
+All other official procedures remain on the current:
+- document upload
+- submission
+- review
+- deadline
+- exception
+
+model.
+
+## Integration points
+- reuse coordinator authorization patterns
+- reuse audit infrastructure style
+- reuse deadline integration only if a Learning Agreement deadline is configured
+- keep exception requests separate, with later linkage only if clearly needed
+- leave social modules untouched except for preserving separation
+
+This is an institutional vertical slice, not a platform-wide rewrite.
+
+---
+
+# 11. Incremental delivery strategy
+
+## Phase A — Minimal vertical slice
+Must-have implementation:
+- schema for agreement + row + event
+- student draft/edit/submit
+- coordinator row decisions
+- partial approval
+- denied-row resubmission enforcement
+- derived academic summary in mobility record
+
+## Phase B — Product-quality refinement
+Second-iteration quality improvements:
+- stronger visual alignment with mockups
+- better table ergonomics
+- better row-level rationale UX
+- coordinator productivity improvements
+- polished summary presentation
+
+## Phase C — Controlled enhancements
+Optional later additions:
+- dedicated comments entity
+- reopen endpoint/workflow polish
+- snapshot materialization if truly needed
+- expanded grade lifecycle tools
+
+## Migration/coexistence strategy
+- introduce as a new institutional vertical slice and route
+- keep legacy submissions untouched for non-academic procedures
+- migrate only the academic-equivalence path to this workflow
+
+---
+
+# 12. Risks / trade-offs
+
+## Too-minimal model risk
+Event-based notes may feel limited.
+This is acceptable for the first slice.
+
+## Revision complexity
+Safe approved-row revision introduces complexity, but it is necessary for institutional integrity and auditability.
+
+## UI density
+Row-level review can become dense.
+Requires filtering, hierarchy, and progressive disclosure.
+
+## State ambiguity risk
+Must compute agreement state strictly from latest row revisions.
+
+## Grade scope creep
+If grade becomes central too early, it can derail delivery.
+Keep it secondary for now.
+
+---
+
+# 13. Definition of done
+
+This workflow is done when all of the following are true:
+
+- student can create, edit, and submit Learning Agreement rows with backend persistence
+- coordinator can approve or deny rows individually with rationale
+- partial approval works and is clearly visible
+- denied rows must be revised before resubmission, and this is server-enforced
+- approved rows are never silently mutable; edits create reviewable revisions
+- full workflow is auditable via event history and audit records
+- `My Mobility Record` shows a polished read-only Academic Summary derived from latest approved rows
+- other institutional procedures continue using the current upload/review flow unchanged
+- institutional/social separation remains intact
+- the UX is coherent, demo-ready, and aligned with second-iteration quality goals
