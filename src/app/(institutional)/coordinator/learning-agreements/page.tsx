@@ -96,7 +96,7 @@ export default function CoordinatorLearningAgreementPage() {
           userId,
           decision,
           rationale: rationaleByRow[rowId] || undefined,
-          grade: gradeByRow[rowId] || null
+          ...(rowId in gradeByRow ? { grade: gradeByRow[rowId] || null } : {})
         })
       });
       const data = await response.json();
