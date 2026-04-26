@@ -3,12 +3,15 @@ import type { Route } from 'next';
 
 const studentLinks = [
   { href: '/student/dashboard?userId=student-1', label: 'Mobility Dashboard' },
+  { href: '/student/mobility-record?userId=student-1', label: 'My Mobility Record' },
+  { href: '/student/learning-agreement?userId=student-1', label: 'My Learning Agreement' },
   { href: '/student/submissions?userId=student-1', label: 'My Submissions' },
   { href: '/student/deadlines?userId=student-1', label: 'Deadlines' },
   { href: '/student/exceptions?userId=student-1', label: 'Exception Requests' }
 ];
 
 const coordinatorLinks = [
+  { href: '/coordinator/learning-agreements?userId=coordinator-1', label: 'Learning Agreement Review' },
   { href: '/coordinator/review-queue?userId=coordinator-1', label: 'Review Queue' },
   { href: '/coordinator/submissions?userId=coordinator-1', label: 'Submission History' },
   { href: '/coordinator/deadlines?userId=coordinator-1', label: 'Deadline View' },
