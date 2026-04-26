@@ -271,6 +271,12 @@ export default function StudentLearningAgreementPage() {
                   <p className="text-xs">{deniedRows.length} denied row(s) still require changes with updated course data.</p>
                 </div>
               ) : null}
+              {agreement.state === 'CHANGES_REQUESTED' ? (
+                <div className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">
+                  <p className="font-medium">Coordinator requested revisions before next review cycle.</p>
+                  <p className="text-xs">Check recent workflow activity for rationale, update impacted rows, then resubmit.</p>
+                </div>
+              ) : null}
 
               <div className="flex flex-wrap gap-2">
                 {agreement.permissions.canSubmit ? (
@@ -310,7 +316,7 @@ export default function StudentLearningAgreementPage() {
                 <span>Equivalence Rows</span>
                 <div className="flex flex-wrap gap-2">
                   {(['ALL', 'DENIED', 'IN_REVIEW', 'APPROVED'] as Filter[]).map((value) => (
-                    <Button key={value} size="sm" variant={filter === value ? 'default' : 'outline'} onClick={() => setFilter(value)}>
+                    <Button key={value} variant={filter === value ? 'default' : 'outline'} onClick={() => setFilter(value)}>
                       {value === 'ALL' ? 'All rows' : value.replace('_', ' ').toLowerCase()}
                     </Button>
                   ))}
@@ -340,9 +346,9 @@ export default function StudentLearningAgreementPage() {
                       ) : null}
                       {agreement.permissions.canEdit ? (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" disabled={saving} onClick={() => beginEdit(row)}>Revise row</Button>
+                          <Button variant="outline" disabled={saving} onClick={() => beginEdit(row)}>Revise row</Button>
                           {agreement.state === 'DRAFT' ? (
-                            <Button size="sm" variant="destructive" disabled={saving} onClick={() => removeRow(row.id)}>Remove</Button>
+                            <Button variant="destructive" disabled={saving} onClick={() => removeRow(row.id)}>Remove</Button>
                           ) : null}
                         </div>
                       ) : null}
