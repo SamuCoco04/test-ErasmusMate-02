@@ -43,9 +43,19 @@ export const transitionAgreementSchema = z.object({
   userId: z.string().min(1)
 });
 
+export const reopenAgreementSchema = z.object({
+  userId: z.string().min(1),
+  rationale: z.string().trim().min(1).max(1000)
+});
+
 export const decideRowSchema = z.object({
   userId: z.string().min(1),
   decision: rowDecisionSchema,
   rationale: z.string().trim().max(1000).optional(),
   grade: z.string().trim().max(20).nullable().optional()
+});
+
+export const updateRowGradeSchema = z.object({
+  userId: z.string().min(1),
+  grade: z.string().trim().max(20).nullable()
 });

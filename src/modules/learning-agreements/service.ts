@@ -188,7 +188,9 @@ export async function getAgreementDetail(input: { agreementId: string; userId: s
       canEdit: user.role === Role.STUDENT && inStates([AgreementState.DRAFT, AgreementState.CHANGES_REQUESTED, AgreementState.PARTIALLY_APPROVED], agreement.state),
       canSubmit: user.role === Role.STUDENT && agreement.state === AgreementState.DRAFT,
       canResubmit: user.role === Role.STUDENT && inStates([AgreementState.CHANGES_REQUESTED, AgreementState.PARTIALLY_APPROVED], agreement.state),
-      canReview: user.role === Role.COORDINATOR && inStates([AgreementState.SUBMITTED, AgreementState.IN_REVIEW], agreement.state)
+      canReview: user.role === Role.COORDINATOR && inStates([AgreementState.SUBMITTED, AgreementState.IN_REVIEW], agreement.state),
+      canReopen: user.role === Role.COORDINATOR && inStates([AgreementState.ACCEPTED, AgreementState.PARTIALLY_APPROVED], agreement.state),
+      canUpdateGrade: user.role === Role.COORDINATOR
     }
   };
 }
@@ -564,6 +566,116 @@ export async function decideAgreementRow(input: {
   });
 }
 
+export async function reopenAgreement(input: { agreementId: string; userId: string; rationale: string }) {
+  return prisma.$transaction(async (tx) => {
+    const { user, agreement } = await getAgreementForActor(tx, input.agreementId, input.userId);
+    assert(user.role === Role.COORDINATOR, 'Only coordinators can reopen agreements', 403);
+    assert(inStates([AgreementState.ACCEPTED, AgreementState.PARTIALLY_APPROVED], agreement.state), 'Agreement cannot be reopened from current state', 400);
+
+    const trimmedRationale = input.rationale.trim();
+    assert(Boolean(trimmedRationale), 'Reopen rationale is required', 400);
+
+    const latestRows = await tx.learningAgreementRow.findMany({
+      where: { agreementId: agreement.id, isLatest: true }
+    });
+
+    const rowsToReturnForReview = latestRows.filter((row) => row.status === RowState.APPROVED);
+    if (rowsToReturnForReview.length > 0) {
+      await tx.learningAgreementRow.updateMany({
+        where: {
+          id: { in: rowsToReturnForReview.map((row) => row.id) },
+          agreementId: agreement.id,
+          isLatest: true
+        },
+        data: {
+          status: RowState.IN_REVIEW,
+          decisionRationale: null,
+          reviewedById: null,
+          reviewedAt: null
+        }
+      });
+    }
+
+    await tx.learningAgreement.update({
+      where: { id: agreement.id },
+      data: {
+        state: AgreementState.CHANGES_REQUESTED,
+        acceptedAt: null,
+        lastReviewedAt: new Date(),
+        version: { increment: 1 }
+      }
+    });
+
+    await tx.learningAgreementEvent.create({
+      data: {
+        id: crypto.randomUUID(),
+        agreementId: agreement.id,
+        actorId: user.id,
+        actionType: 'AGREEMENT_REOPENED',
+        fromState: agreement.state,
+        toState: AgreementState.CHANGES_REQUESTED,
+        noteOrRationale: trimmedRationale
+      }
+    });
+
+    await tx.auditRecord.create({
+      data: {
+        id: crypto.randomUUID(),
+        actorId: user.id,
+        actionType: 'LEARNING_AGREEMENT_REOPENED',
+        targetType: 'LearningAgreement',
+        targetId: agreement.id,
+        priorState: agreement.state,
+        newState: AgreementState.CHANGES_REQUESTED,
+        outcome: 'SUCCESS',
+        metadataJson: JSON.stringify({
+          rationale: trimmedRationale,
+          rowsReturnedToReview: rowsToReturnForReview.length
+        })
+      }
+    });
+  });
+}
+
+export async function updateAgreementRowGrade(input: {
+  agreementId: string;
+  rowId: string;
+  userId: string;
+  grade: string | null;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const { user } = await getAgreementForActor(tx, input.agreementId, input.userId);
+    assert(user.role === Role.COORDINATOR, 'Only coordinators can update grades', 403);
+
+    const row = await tx.learningAgreementRow.findUnique({ where: { id: input.rowId } });
+    assert(!!row, 'Row not found', 404);
+    assert(row.agreementId === input.agreementId, 'Row does not belong to agreement', 400);
+    assert(row.isLatest, 'Only latest row revisions can be graded', 400);
+    assert(row.status !== RowState.DENIED, 'Cannot set grade for denied rows', 400);
+
+    const normalizedGrade = normalizeGrade(input.grade);
+    const updated = await tx.learningAgreementRow.update({
+      where: { id: row.id },
+      data: {
+        grade: normalizedGrade
+      }
+    });
+
+    await tx.learningAgreementEvent.create({
+      data: {
+        id: crypto.randomUUID(),
+        agreementId: input.agreementId,
+        rowId: row.id,
+        actorId: user.id,
+        actionType: 'ROW_GRADE_UPDATED',
+        noteOrRationale: normalizedGrade ? `Grade set to ${normalizedGrade}` : 'Grade cleared'
+      }
+    });
+
+    return updated;
+  });
+}
+
 export async function listCoordinatorReviewQueue(userId: string) {
   const user = await prisma.userAccount.findUnique({ where: { id: userId } });
   assert(!!user, 'User not found', 404);
@@ -572,7 +684,15 @@ export async function listCoordinatorReviewQueue(userId: string) {
   return prisma.learningAgreement.findMany({
     where: {
       coordinatorId: userId,
-      state: { in: [AgreementState.SUBMITTED, AgreementState.IN_REVIEW] }
+      state: {
+        in: [
+          AgreementState.SUBMITTED,
+          AgreementState.IN_REVIEW,
+          AgreementState.PARTIALLY_APPROVED,
+          AgreementState.CHANGES_REQUESTED,
+          AgreementState.ACCEPTED
+        ]
+      }
     },
     include: {
       student: { select: { fullName: true } },

@@ -48,6 +48,8 @@ export default function CoordinatorLearningAgreementPage() {
   const [gradeByRow, setGradeByRow] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [savingRow, setSavingRow] = useState<string | null>(null);
+  const [reopenRationale, setReopenRationale] = useState('');
+  const [reopening, setReopening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -113,13 +115,66 @@ export default function CoordinatorLearningAgreementPage() {
     }
   }
 
+  async function saveGrade(rowId: string) {
+    if (!selected) return;
+    setSavingRow(rowId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/learning-agreements/${selected.id}/rows/${rowId}/grade`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          grade: rowId in gradeByRow ? gradeByRow[rowId] || null : null
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Grade update failed');
+      } else {
+        await load();
+      }
+    } catch {
+      setError('Grade update failed');
+    } finally {
+      setSavingRow(null);
+    }
+  }
+
+  async function reopenSelected() {
+    if (!selected) return;
+    setReopening(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/learning-agreements/${selected.id}/reopen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          rationale: reopenRationale
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to reopen agreement');
+      } else {
+        setReopenRationale('');
+        await load();
+      }
+    } catch {
+      setError('Failed to reopen agreement');
+    } finally {
+      setReopening(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Learning Agreement Review</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Institutional review workspace with queue visibility, row-level decisions, denial rationale, and optional grade entry.
+            Institutional review workspace with queue visibility, row-level decisions, rationale tracking, explicit reopen controls, and coordinator-only grade management.
           </p>
         </CardHeader>
       </Card>
@@ -169,6 +224,27 @@ export default function CoordinatorLearningAgreementPage() {
                     <div className="rounded border bg-rose-50 p-2 text-xs">Denied: {stats.denied}</div>
                     <div className="rounded border bg-amber-50 p-2 text-xs">Pending: {stats.pending}</div>
                   </div>
+                  <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                    Grade is optional and coordinator-controlled. It supports later lifecycle recognition and does not govern initial equivalence approval.
+                  </div>
+
+                  {['ACCEPTED', 'PARTIALLY_APPROVED'].includes(selected.state) ? (
+                    <div className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
+                      <p className="text-xs font-medium text-amber-900">Reopen agreement for controlled revision</p>
+                      <Textarea
+                        value={reopenRationale}
+                        onChange={(event) => setReopenRationale(event.target.value)}
+                        placeholder="Reopen rationale (required)"
+                      />
+                      <Button
+                        disabled={reopening || !reopenRationale.trim()}
+                        variant="outline"
+                        onClick={reopenSelected}
+                      >
+                        Reopen agreement
+                      </Button>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-2">
                     {selected.rows.map((row) => (
@@ -184,13 +260,21 @@ export default function CoordinatorLearningAgreementPage() {
                           <p className="mt-1 rounded border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">Previous rationale: {row.decisionRationale}</p>
                         ) : null}
 
-                        {row.status === 'IN_REVIEW' ? (
-                          <div className="mt-2 space-y-2">
-                            <Input
-                              placeholder="Optional grade update (coordinator only)"
-                              value={gradeByRow[row.id] ?? row.grade ?? ''}
-                              onChange={(event) => setGradeByRow((prev) => ({ ...prev, [row.id]: event.target.value }))}
-                            />
+                        <div className="mt-2 space-y-2">
+                          {row.status !== 'DENIED' ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Input
+                                placeholder="Optional coordinator-only grade"
+                                value={gradeByRow[row.id] ?? row.grade ?? ''}
+                                onChange={(event) => setGradeByRow((prev) => ({ ...prev, [row.id]: event.target.value }))}
+                              />
+                              <Button variant="outline" disabled={savingRow === row.id} onClick={() => saveGrade(row.id)}>
+                                Save grade
+                              </Button>
+                            </div>
+                          ) : null}
+                          {row.status === 'IN_REVIEW' ? (
+                            <>
                             <Textarea
                               value={rationaleByRow[row.id] ?? ''}
                               onChange={(event) => setRationaleByRow((prev) => ({ ...prev, [row.id]: event.target.value }))}
@@ -200,8 +284,9 @@ export default function CoordinatorLearningAgreementPage() {
                               <Button disabled={savingRow === row.id} onClick={() => decide(row.id, 'APPROVED')}>Approve row</Button>
                               <Button disabled={savingRow === row.id} variant="destructive" onClick={() => decide(row.id, 'DENIED')}>Deny row</Button>
                             </div>
-                          </div>
-                        ) : null}
+                            </>
+                          ) : null}
+                        </div>
                       </div>
                     ))}
                   </div>
