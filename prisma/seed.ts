@@ -15,6 +15,9 @@ async function clearDatabase() {
   await prisma.socialVisibilitySettings.deleteMany();
   await prisma.socialSupportProfile.deleteMany();
   await prisma.auditRecord.deleteMany();
+  await prisma.learningAgreementEvent.deleteMany();
+  await prisma.learningAgreementRow.deleteMany();
+  await prisma.learningAgreement.deleteMany();
   await prisma.exceptionEvent.deleteMany();
   await prisma.exceptionRequest.deleteMany();
   await prisma.deadline.deleteMany();
@@ -296,6 +299,95 @@ async function main() {
         fromState: 'IN_REVIEW',
         toState: 'APPROVED',
         rationale: 'All mandatory fields and signatures valid.'
+      }
+    ]
+  });
+
+  const learningAgreement = await prisma.learningAgreement.create({
+    data: {
+      id: 'la-1',
+      mobilityRecordId: mobilityRecord.id,
+      studentId: student.id,
+      coordinatorId: coordinator.id,
+      state: 'PARTIALLY_APPROVED',
+      submittedAt: new Date('2026-04-12T09:00:00.000Z'),
+      lastReviewedAt: new Date('2026-04-14T11:00:00.000Z')
+    }
+  });
+
+  const [laApprovedRow, laDeniedRow] = await Promise.all([
+    prisma.learningAgreementRow.create({
+      data: {
+        id: 'la-row-1',
+        agreementId: learningAgreement.id,
+        rowKey: 'la-row-key-1',
+        revision: 1,
+        homeCourseCode: 'UB-ECON-301',
+        homeCourseName: 'International Economics',
+        destinationCourseCode: 'HOST-ECON-44',
+        destinationCourseName: 'Global Trade Systems',
+        ects: 6,
+        semester: 'Semester 1',
+        status: 'APPROVED',
+        reviewedById: coordinator.id,
+        reviewedAt: new Date('2026-04-14T10:30:00.000Z')
+      }
+    }),
+    prisma.learningAgreementRow.create({
+      data: {
+        id: 'la-row-2',
+        agreementId: learningAgreement.id,
+        rowKey: 'la-row-key-2',
+        revision: 1,
+        homeCourseCode: 'UB-MATH-220',
+        homeCourseName: 'Applied Statistics',
+        destinationCourseCode: 'HOST-MATH-77',
+        destinationCourseName: 'Data Analysis for Social Science',
+        ects: 5,
+        semester: 'Semester 1',
+        status: 'DENIED',
+        decisionRationale: 'Destination syllabus lacks probability modules required for equivalence.',
+        reviewedById: coordinator.id,
+        reviewedAt: new Date('2026-04-14T10:45:00.000Z')
+      }
+    })
+  ]);
+
+  await prisma.learningAgreementEvent.createMany({
+    data: [
+      {
+        id: 'la-event-create',
+        agreementId: learningAgreement.id,
+        actorId: student.id,
+        actionType: 'AGREEMENT_CREATED',
+        toState: 'DRAFT'
+      },
+      {
+        id: 'la-event-submit',
+        agreementId: learningAgreement.id,
+        actorId: student.id,
+        actionType: 'AGREEMENT_SUBMITTED',
+        fromState: 'DRAFT',
+        toState: 'SUBMITTED'
+      },
+      {
+        id: 'la-event-approve-row',
+        agreementId: learningAgreement.id,
+        rowId: laApprovedRow.id,
+        actorId: coordinator.id,
+        actionType: 'ROW_APPROVED',
+        fromState: 'IN_REVIEW',
+        toState: 'APPROVED'
+      },
+      {
+        id: 'la-event-deny-row',
+        agreementId: learningAgreement.id,
+        rowId: laDeniedRow.id,
+        actorId: coordinator.id,
+        actionType: 'ROW_DENIED',
+        fromState: 'IN_REVIEW',
+        toState: 'DENIED',
+        noteOrRationale: 'Destination syllabus lacks probability modules required for equivalence.'
       }
     ]
   });
