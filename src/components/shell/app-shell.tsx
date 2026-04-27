@@ -1,22 +1,21 @@
-import Link from 'next/link';
-import type { Route } from 'next';
-
+import { ContextualLink } from '@/components/shell/contextual-link';
+import { DemoRoleContext } from '@/components/shell/demo-role-switcher';
 import { ShellHeaderBlock, ShellKpiRow, ShellSectionPanel } from '@/components/shell/shell-primitives';
 
 function getTopLayerLinks(role: 'student' | 'coordinator' | 'administrator') {
   const institutionalHref =
     role === 'coordinator'
-      ? '/coordinator/review-queue?userId=coordinator-1'
+      ? '/coordinator/review-queue'
       : role === 'administrator'
-        ? '/admin?userId=admin-1'
-        : '/student/dashboard?userId=student-1';
+        ? '/admin'
+        : '/student/dashboard';
 
   const links: { href: string; label: string; emphasis: 'primary' | 'secondary' }[] = [
     { href: institutionalHref, label: 'Institutional Core', emphasis: 'primary' }
   ];
 
   if (role === 'student') {
-    links.push({ href: '/social/profile?userId=student-1', label: 'Social Support Layer', emphasis: 'secondary' });
+    links.push({ href: '/social/profile', label: 'Social Support Layer', emphasis: 'secondary' });
   }
 
   return links;
@@ -26,17 +25,17 @@ const studentLinkGroups = [
   {
     heading: 'Student Workflow',
     links: [
-      { href: '/student/dashboard?userId=student-1', label: 'Mobility Dashboard' },
-      { href: '/student/submissions?userId=student-1', label: 'My Submissions' },
-      { href: '/student/learning-agreement?userId=student-1', label: 'My Learning Agreement' }
+      { href: '/student/dashboard', label: 'Mobility Dashboard' },
+      { href: '/student/submissions', label: 'My Submissions' },
+      { href: '/student/learning-agreement', label: 'My Learning Agreement' }
     ]
   },
   {
     heading: 'Records & Rules',
     links: [
-      { href: '/student/mobility-record?userId=student-1', label: 'My Mobility Record' },
-      { href: '/student/deadlines?userId=student-1', label: 'Deadlines' },
-      { href: '/student/exceptions?userId=student-1', label: 'Exception Requests' }
+      { href: '/student/mobility-record', label: 'My Mobility Record' },
+      { href: '/student/deadlines', label: 'Deadlines' },
+      { href: '/student/exceptions', label: 'Exception Requests' }
     ]
   }
 ];
@@ -45,16 +44,16 @@ const coordinatorLinkGroups = [
   {
     heading: 'Review Operations',
     links: [
-      { href: '/coordinator/review-queue?userId=coordinator-1', label: 'Review Queue' },
-      { href: '/coordinator/learning-agreements?userId=coordinator-1', label: 'Learning Agreement Review' },
-      { href: '/coordinator/submissions?userId=coordinator-1', label: 'Submission History' }
+      { href: '/coordinator/review-queue', label: 'Review Queue' },
+      { href: '/coordinator/learning-agreements', label: 'Learning Agreement Review' },
+      { href: '/coordinator/submissions', label: 'Submission History' }
     ]
   },
   {
     heading: 'Governance',
     links: [
-      { href: '/coordinator/deadlines?userId=coordinator-1', label: 'Deadline View' },
-      { href: '/coordinator/exceptions?userId=coordinator-1', label: 'Exception Decisions' }
+      { href: '/coordinator/deadlines', label: 'Deadline View' },
+      { href: '/coordinator/exceptions', label: 'Exception Decisions' }
     ]
   }
 ];
@@ -63,8 +62,8 @@ const adminLinkGroups = [
   {
     heading: 'Administration',
     links: [
-      { href: '/admin?userId=admin-1', label: 'Admin Home' },
-      { href: '/admin/moderation?userId=admin-1', label: 'Moderation Queue' }
+      { href: '/admin', label: 'Admin Home' },
+      { href: '/admin/moderation', label: 'Moderation Queue' }
     ]
   }
 ];
@@ -79,6 +78,7 @@ export function AppShell({
   const groups =
     role === 'student' ? studentLinkGroups : role === 'coordinator' ? coordinatorLinkGroups : adminLinkGroups;
   const topLayerLinks = getTopLayerLinks(role);
+  const fallbackUserId = role === 'student' ? 'student-1' : role === 'coordinator' ? 'coordinator-1' : 'admin-1';
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -88,11 +88,12 @@ export function AppShell({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">ErasmusMate</p>
             <p className="text-sm font-medium text-slate-800">Institutional Core Workspace</p>
           </div>
-          <nav className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {topLayerLinks.map((link) => (
-              <Link
+              <ContextualLink
                 key={link.href}
-                href={link.href as Route}
+                href={link.href}
+                fallbackUserId={fallbackUserId}
                 className={`rounded-md border px-3 py-1.5 text-sm font-medium transition ${
                   link.emphasis === 'primary'
                     ? 'border-slate-300 bg-slate-900 text-white'
@@ -100,9 +101,10 @@ export function AppShell({
                 }`}
               >
                 {link.label}
-              </Link>
+              </ContextualLink>
             ))}
-          </nav>
+            <DemoRoleContext role={role} />
+          </div>
         </div>
       </header>
 
@@ -115,13 +117,14 @@ export function AppShell({
                 <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{group.heading}</h2>
                 <div className="space-y-1">
                   {group.links.map((link) => (
-                    <Link
+                    <ContextualLink
                       key={link.href}
-                      href={link.href as Route}
+                      href={link.href}
+                      fallbackUserId={fallbackUserId}
                       className="block rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
                     >
                       {link.label}
-                    </Link>
+                    </ContextualLink>
                   ))}
                 </div>
               </div>

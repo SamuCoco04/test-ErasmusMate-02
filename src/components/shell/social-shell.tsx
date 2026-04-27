@@ -1,22 +1,21 @@
-import Link from 'next/link';
-import type { Route } from 'next';
-
+import { ContextualLink } from '@/components/shell/contextual-link';
+import { DemoRoleContext } from '@/components/shell/demo-role-switcher';
 import { ShellHeaderBlock, ShellKpiRow, ShellSectionPanel } from '@/components/shell/shell-primitives';
 
 const socialLinkGroups = [
   {
     heading: 'Social Profile & Discovery',
     links: [
-      { href: '/social/profile?userId=student-1', label: 'My Social Profile' },
-      { href: '/social/discover?userId=student-1', label: 'Discover Students' },
-      { href: '/social/map?userId=student-1', label: 'Map Discovery' }
+      { href: '/social/profile', label: 'My Social Profile' },
+      { href: '/social/discover', label: 'Discover Students' },
+      { href: '/social/map', label: 'Map Discovery' }
     ]
   },
   {
     heading: 'Connections & Content',
     links: [
-      { href: '/social/messages?userId=student-1', label: 'Messages' },
-      { href: '/social/content?userId=student-1', label: 'Content & Favorites' }
+      { href: '/social/messages', label: 'Messages' },
+      { href: '/social/content', label: 'Content & Favorites' }
     ]
   }
 ];
@@ -30,20 +29,23 @@ export function SocialShell({ children }: { children: React.ReactNode }) {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">ErasmusMate</p>
             <p className="text-sm font-medium text-slate-800">Social Support Workspace (Secondary Layer)</p>
           </div>
-          <nav className="flex flex-wrap items-center gap-2">
-            <Link
-              href={'/student/dashboard?userId=student-1' as Route}
+          <div className="flex flex-wrap items-center gap-2">
+            <ContextualLink
+              href="/student/dashboard"
+              fallbackUserId="student-1"
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Institutional Core
-            </Link>
-            <Link
-              href={'/social/profile?userId=student-1' as Route}
+            </ContextualLink>
+            <ContextualLink
+              href="/social/profile"
+              fallbackUserId="student-1"
               className="rounded-md border border-sky-300 bg-sky-600 px-3 py-1.5 text-sm font-medium text-white"
             >
               Social Support
-            </Link>
-          </nav>
+            </ContextualLink>
+            <DemoRoleContext role="student" availableRoles={['student']} />
+          </div>
         </div>
       </header>
 
@@ -56,13 +58,14 @@ export function SocialShell({ children }: { children: React.ReactNode }) {
                 <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{group.heading}</h2>
                 <div className="space-y-1">
                   {group.links.map((link) => (
-                    <Link
+                    <ContextualLink
                       key={link.href}
-                      href={link.href as Route}
+                      href={link.href}
+                      fallbackUserId="student-1"
                       className="block rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
                     >
                       {link.label}
-                    </Link>
+                    </ContextualLink>
                   ))}
                 </div>
               </div>
