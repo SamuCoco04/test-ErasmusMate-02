@@ -3,16 +3,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LoadingState } from '@/components/states/loading-state';
-import { ErrorState } from '@/components/states/error-state';
 import { EmptyState } from '@/components/states/empty-state';
+import { ErrorState } from '@/components/states/error-state';
+import { LoadingState } from '@/components/states/loading-state';
+import { EntityListButton, InstitutionalPageTemplate } from '@/components/institutional/page-template';
 import type { StudentDeadlineItem } from '@/modules/institutional/types';
+
+function getDeadlineDisplay(deadline: StudentDeadlineItem) {
+  return {
+    isOverridden: Boolean(deadline.overrideDueAt),
+    effectiveDueAt: deadline.overrideDueAt || deadline.dueAt
+  };
+}
 
 export default function StudentDeadlinesPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'student-1';
-
   const [deadlines, setDeadlines] = useState<StudentDeadlineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,12 +28,10 @@ export default function StudentDeadlinesPage() {
     try {
       const response = await fetch(`/api/deadlines?role=student&userId=${userId}`);
       const payload = await response.json();
-
       if (!response.ok) {
         setError(payload.error || 'Failed to load deadlines');
         return;
       }
-
       setDeadlines(payload.deadlines || []);
       setError(null);
     } catch {
@@ -42,34 +46,32 @@ export default function StudentDeadlinesPage() {
   }, [load]);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Deadline view (WF-006)</CardTitle>
-        </CardHeader>
-      </Card>
-
-      {loading ? <LoadingState /> : null}
-      {error ? <ErrorState message={error} /> : null}
-
-      {!loading && !error && deadlines.length === 0 ? (
-        <EmptyState title="No deadlines found" hint="New obligations will appear here based on your mobility procedures." />
-      ) : null}
-
-      <div className="space-y-3">
-        {deadlines.map((deadline) => (
-          <Card key={deadline.id}>
-            <CardContent className="space-y-1 p-4 text-sm">
-              <p className="font-medium">{deadline.title}</p>
-              <p>
-                Due: {new Date(deadline.overrideDueAt || deadline.dueAt).toLocaleString()}
-                {deadline.overrideDueAt ? ' (override applied)' : ''}
-              </p>
-              <Badge>{deadline.effectiveState}</Badge>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+    <InstitutionalPageTemplate
+      title="Student Deadline View"
+      subtitle="Track procedure-sensitive obligations and their effective state."
+      contextSummary={<p className="text-sm">Open deadlines: <strong>{deadlines.length}</strong> · Workflow: WF-006</p>}
+      primaryRegion={
+        <div className="space-y-2 text-sm">
+          {loading ? <LoadingState label="Loading deadlines..." /> : null}
+          {error ? <ErrorState message={error} /> : null}
+          {!loading && !error && deadlines.length === 0 ? <EmptyState title="No deadlines found" /> : null}
+          {deadlines.map((deadline) => {
+            const { isOverridden, effectiveDueAt } = getDeadlineDisplay(deadline);
+            return (
+              <EntityListButton key={deadline.id}>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2"><p className="font-medium">{deadline.title}</p><Badge>{deadline.effectiveState}</Badge></div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <p>Due: {new Date(effectiveDueAt).toLocaleString()}</p>
+                    {isOverridden ? <Badge variant="secondary">Override applied</Badge> : null}
+                  </div>
+                </div>
+              </EntityListButton>
+            );
+          })}
+        </div>
+      }
+      activityRegion={<p className="text-xs text-muted-foreground">Overridden deadlines are labeled in the list, and due dates reflect the effective deadline.</p>}
+    />
   );
 }
