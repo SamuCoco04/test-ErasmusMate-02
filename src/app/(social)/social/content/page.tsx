@@ -191,7 +191,9 @@ export default function SocialContentPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            {mineOnly ? VISIBILITY_COPY.mineOnly : VISIBILITY_COPY.default}
+            {mineOnly
+              ? 'Mine-only mode includes your own authored items, including moderation-limited states, while backend enforcement remains unchanged.'
+              : 'Results include only backend-visible items for your current access scope. Moderation and visibility enforcement are unchanged.'}
           </p>
           <div className="grid gap-2 md:grid-cols-4">
             <Input placeholder="Search text" value={search} onChange={(e) => setSearch(e.target.value)} />

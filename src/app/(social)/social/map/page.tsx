@@ -153,6 +153,11 @@ export default function SocialMapPage() {
           <CardContent>
             <SocialMapCanvas items={items} selectedItemId={selected?.id ?? null} onSelect={handleSelect} />
             <p className="mt-2 text-xs text-muted-foreground">Select from list or click marker. Marker click opens preview details on the right.</p>
+            {!items.length ? (
+              <p className="mt-2 rounded border border-dashed p-2 text-xs text-muted-foreground">
+                No markers match the current filters. Try clearing one or more filters to restore visible map content.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -203,10 +208,7 @@ export default function SocialMapPage() {
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/social/content/${selected.id}?userId=${userId}`}
-                      className={cn(
-                        'inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50',
-                        'bg-primary text-primary-foreground hover:opacity-90'
-                      )}
+                      className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
                     >
                       Open detail
                     </Link>
