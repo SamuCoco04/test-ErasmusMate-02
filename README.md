@@ -35,9 +35,17 @@ ErasmusMate is a locally runnable, full-stack Next.js prototype with:
 
 ## Demo users and role routes
 
-Use these query params to simulate role-aware flows locally.
+Use `/` as the demo entry screen to switch presets (student/coordinator/admin) quickly.
+Query-parameter deep links remain fully supported and continue to carry deterministic identity context for scripted walkthroughs.
 
 ### Institutional layer
+- Student dashboard: `/student/dashboard`
+- Student submissions: `/student/submissions`
+- Coordinator queue: `/coordinator/review-queue`
+- Admin dashboard: `/admin`
+- *(Scripted deep-link equivalents keep working, e.g. `/student/dashboard?userId=student-1`)*
+
+### Institutional layer (deep-link mode)
 - Student dashboard: `/student/dashboard?userId=student-1`
 - Student submissions: `/student/submissions?userId=student-1`
 - Student deadlines: `/student/deadlines?userId=student-1`
@@ -49,6 +57,14 @@ Use these query params to simulate role-aware flows locally.
 - Admin moderation queue: `/admin/moderation?userId=admin-1`
 
 ### Social layer
+- Social home: `/social`
+- Discover + connections: `/social/discover`
+- Messages: `/social/messages`
+- Content board: `/social/content`
+- Map discovery: `/social/map`
+- *(Deep-link mode with `?userId=student-1` remains available.)*
+
+### Social layer (deep-link mode)
 - Social home: `/social?userId=student-1`
 - Discover + connections: `/social/discover?userId=student-1`
 - Messages: `/social/messages?userId=student-1`
