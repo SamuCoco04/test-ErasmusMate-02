@@ -29,7 +29,7 @@ export function resolveWorkflowTone(state?: string | null): WorkflowTone {
     value.includes('fulfilled') ||
     value.includes('completed') ||
     value.includes('closed') ||
-    value === 'active'
+    value === 'active' // strict match: avoids false-positive on 'profile_active_private' etc.
   ) {
     return 'approved';
   }
