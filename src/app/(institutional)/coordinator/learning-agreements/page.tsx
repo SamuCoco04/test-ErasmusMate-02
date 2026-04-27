@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ export default function CoordinatorLearningAgreementPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const response = await fetch(`/api/learning-agreements?role=coordinator&userId=${userId}`);
@@ -55,9 +55,9 @@ export default function CoordinatorLearningAgreementPage() {
       if (!response.ok) setError(data.error || 'Failed to load queue');
       else { setQueue(data.queue || []); setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null); }
     } catch { setError('Failed to load queue'); } finally { setLoading(false); }
-  }
+  }, [userId]);
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { load(); }, [load]);
 
   const selected = queue.find((item) => item.id === selectedId) ?? null;
   const stats = useMemo(() => {

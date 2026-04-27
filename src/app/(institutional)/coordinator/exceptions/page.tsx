@@ -81,7 +81,7 @@ export default function CoordinatorExceptionsPage() {
       contextSummary={<p className="text-sm">Queue items: <strong>{exceptions.length}</strong> · Workflow: WF-005</p>}
       actionsBar={
         <div className="space-y-2 text-sm">
-          <Textarea value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Decision rationale (required for rejection)" />
+          <Textarea aria-label="Decision rationale" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Decision rationale (required for rejection)" />
           <div className="grid grid-cols-2 gap-2">
             <Button disabled={saving || !selected} variant="outline" onClick={() => action('start_review')}>Start review</Button>
             <Button disabled={saving || !selected} onClick={() => action('approve')}>Approve</Button>

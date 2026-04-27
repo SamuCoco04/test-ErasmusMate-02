@@ -9,6 +9,13 @@ import { LoadingState } from '@/components/states/loading-state';
 import { EntityListButton, InstitutionalPageTemplate } from '@/components/institutional/page-template';
 import type { StudentDeadlineItem } from '@/modules/institutional/types';
 
+function getDeadlineDisplay(deadline: StudentDeadlineItem) {
+  return {
+    isOverridden: Boolean(deadline.overrideDueAt),
+    effectiveDueAt: deadline.overrideDueAt || deadline.dueAt
+  };
+}
+
 export default function StudentDeadlinesPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'student-1';
@@ -48,17 +55,23 @@ export default function StudentDeadlinesPage() {
           {loading ? <LoadingState label="Loading deadlines..." /> : null}
           {error ? <ErrorState message={error} /> : null}
           {!loading && !error && deadlines.length === 0 ? <EmptyState title="No deadlines found" /> : null}
-          {deadlines.map((deadline) => (
-            <EntityListButton key={deadline.id}>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between gap-2"><p className="font-medium">{deadline.title}</p><Badge>{deadline.effectiveState}</Badge></div>
-                <p className="text-xs text-muted-foreground">Due: {new Date(deadline.overrideDueAt || deadline.dueAt).toLocaleString()}</p>
-              </div>
-            </EntityListButton>
-          ))}
+          {deadlines.map((deadline) => {
+            const { isOverridden, effectiveDueAt } = getDeadlineDisplay(deadline);
+            return (
+              <EntityListButton key={deadline.id}>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2"><p className="font-medium">{deadline.title}</p><Badge>{deadline.effectiveState}</Badge></div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <p>Due: {new Date(effectiveDueAt).toLocaleString()}</p>
+                    {isOverridden ? <Badge variant="secondary">Override applied</Badge> : null}
+                  </div>
+                </div>
+              </EntityListButton>
+            );
+          })}
         </div>
       }
-      activityRegion={<p className="text-xs text-muted-foreground">Deadline override signals are shown directly in due date calculations.</p>}
+      activityRegion={<p className="text-xs text-muted-foreground">Overridden deadlines are labeled in the list, and due dates reflect the effective deadline.</p>}
     />
   );
 }

@@ -190,8 +190,8 @@ export default function StudentLearningAgreementPage() {
               <Button key={value} variant={filter === value ? 'default' : 'outline'} onClick={() => setFilter(value)}>{value}</Button>
             ))}
           </div>
-          {!agreement?.rows.length ? <EmptyState title="No rows yet" hint="Add your first equivalence row." /> : null}
-          {agreement?.rows.length && !visibleRows.length ? <EmptyState title="No rows in this filter" /> : null}
+          {!loading && agreement != null && !agreement.rows.length ? <EmptyState title="No rows yet" hint="Add your first equivalence row." /> : null}
+          {!loading && agreement != null && agreement.rows.length > 0 && !visibleRows.length ? <EmptyState title="No rows in this filter" /> : null}
           <div className="space-y-2">
             {visibleRows.map((row) => (
               <div key={row.id} className="rounded border p-3">
@@ -212,14 +212,14 @@ export default function StudentLearningAgreementPage() {
       }
       activityRegion={
         <div className="space-y-2 text-xs text-muted-foreground">
-          {!agreement?.events.length ? <EmptyState title="No workflow activity yet" /> : null}
-          {agreement?.events.slice(0, 8).map((event) => (
+          {!loading && agreement != null && !agreement.events.length ? <EmptyState title="No workflow activity yet" /> : null}
+          {!loading && agreement != null ? agreement.events.slice(0, 8).map((event) => (
             <div key={event.id} className="rounded border p-2">
               <p className="font-medium text-slate-700">{event.actionType.replaceAll('_', ' ')}</p>
               <p>{new Date(event.createdAt).toLocaleString()} · {event.actor.fullName}</p>
               {event.noteOrRationale ? <p>{event.noteOrRationale}</p> : null}
             </div>
-          ))}
+          )) : null}
         </div>
       }
     />

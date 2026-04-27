@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,7 @@ export default function CoordinatorSubmissionHistoryPage() {
 
   const filteredStates = useMemo(() => (stateFilter ? [stateFilter] : []), [stateFilter]);
 
-  async function loadList() {
+  const loadList = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const searchParams = new URLSearchParams({ role: 'coordinator', userId, scope: 'history' });
@@ -58,9 +58,9 @@ export default function CoordinatorSubmissionHistoryPage() {
       setSubmissions(nextSubmissions);
       setSelectedId((prev) => (prev && nextSubmissions.some((submission: SubmissionListItem) => submission.id === prev) ? prev : nextSubmissions[0]?.id ?? null));
     } catch { setError('Failed to load submissions'); } finally { setLoading(false); }
-  }
+  }, [userId, filteredStates, query]);
 
-  async function loadDetail(submissionId: string) {
+  const loadDetail = useCallback(async (submissionId: string) => {
     setDetailLoading(true);
     try {
       const response = await fetch(`/api/submissions/${submissionId}?role=coordinator&userId=${userId}`);
@@ -69,13 +69,13 @@ export default function CoordinatorSubmissionHistoryPage() {
       setSelected(data.submission || null);
       setAudit(data.audit || []);
     } catch { setError('Failed to load submission details'); } finally { setDetailLoading(false); }
-  }
+  }, [userId]);
 
-  useEffect(() => { loadList(); }, [userId, stateFilter]);
+  useEffect(() => { loadList(); }, [loadList]);
   useEffect(() => {
     if (!selectedId) { setSelected(null); setAudit([]); return; }
     loadDetail(selectedId);
-  }, [selectedId, userId]);
+  }, [selectedId, loadDetail]);
 
   async function runAction(action: 'start_review' | 'approve' | 'reject' | 'reopen') {
     if (!selected) return;

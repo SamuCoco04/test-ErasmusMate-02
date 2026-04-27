@@ -60,15 +60,18 @@ export function EntityListButton({
   onClick?: () => void;
   children: ReactNode;
 }) {
+  const className = cn(
+    'w-full rounded border px-3 py-2 text-left transition',
+    onClick && 'hover:bg-slate-50',
+    selected && 'border-blue-600 bg-blue-50'
+  );
+
+  if (!onClick) {
+    return <div className={className}>{children}</div>;
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'w-full rounded border px-3 py-2 text-left transition hover:bg-slate-50',
-        selected && 'border-blue-600 bg-blue-50'
-      )}
-    >
+    <button type="button" onClick={onClick} aria-pressed={selected} className={className}>
       {children}
     </button>
   );

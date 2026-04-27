@@ -85,8 +85,8 @@ export default function StudentExceptionsPage() {
       contextSummary={<p className="text-sm">Workflow: WF-005 · Requests in history: <strong>{exceptions.length}</strong></p>}
       actionsBar={
         <div className="space-y-2 text-sm">
-          <Input value={scopeRefId} onChange={(e) => setScopeRefId(e.target.value)} placeholder="Deadline reference id" />
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this exception is needed" />
+          <Input aria-label="Deadline reference id" value={scopeRefId} onChange={(e) => setScopeRefId(e.target.value)} placeholder="Deadline reference id" />
+          <Textarea aria-label="Explain why this exception is needed" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this exception is needed" />
           <Button onClick={submitException} disabled={saving || reason.length < 10}>Submit exception</Button>
         </div>
       }
