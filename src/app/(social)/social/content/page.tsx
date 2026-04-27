@@ -12,6 +12,13 @@ import { ErrorState } from '@/components/states/error-state';
 const KINDS = ['recommendation', 'tip', 'review', 'opinion'] as const;
 const TOPICS = ['accommodation', 'transport', 'bureaucracy', 'academics', 'daily_living'] as const;
 
+const VISIBILITY_COPY = {
+  mineOnly:
+    'Results include your authored items, including moderation-limited states except removed content. Moderation and visibility enforcement are unchanged; this page improves discoverability only.',
+  default:
+    'Results include only backend-visible items. Moderation and visibility enforcement are unchanged; this page improves discoverability only.',
+} as const;
+
 type Kind = (typeof KINDS)[number];
 
 type ContentItem = {
@@ -180,28 +187,38 @@ export default function SocialContentPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Recommendations, Tips, Reviews, Opinions, and Favorites (WF-012)</CardTitle>
+          <CardTitle>Content board · filter → visible list → detail actions</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-4">
-          <Input placeholder="Search text" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Input placeholder="City" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} />
-          <select className="rounded border px-2 text-sm" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
-            <option value="">All kinds</option>
-            {KINDS.map((kind) => (
-              <option key={kind} value={kind}>{kind}</option>
-            ))}
-          </select>
-          <select className="rounded border px-2 text-sm" value={topicFilter} onChange={(e) => setTopicFilter(e.target.value)}>
-            <option value="">All topics</option>
-            {TOPICS.map((topic) => (
-              <option key={topic} value={topic}>{topic}</option>
-            ))}
-          </select>
-          <label className="col-span-2 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
-            Show only my authored content (including moderated states)
-          </label>
-          <Button onClick={load}>Apply filters</Button>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {mineOnly ? VISIBILITY_COPY.mineOnly : VISIBILITY_COPY.default}
+          </p>
+          <div className="grid gap-2 md:grid-cols-4">
+            <Input placeholder="Search text" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="City" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} />
+            <select className="rounded border px-2 text-sm" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+              <option value="">All content types</option>
+              {KINDS.map((kind) => (
+                <option key={kind} value={kind}>{kind}</option>
+              ))}
+            </select>
+            <select className="rounded border px-2 text-sm" value={topicFilter} onChange={(e) => setTopicFilter(e.target.value)}>
+              <option value="">All topic tags</option>
+              {TOPICS.map((topic) => (
+                <option key={topic} value={topic}>{topic}</option>
+              ))}
+            </select>
+            <label className="col-span-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+              Show my authored items (including moderation-limited states)
+            </label>
+            <Button onClick={load}>Apply filters</Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge>{items.length} visible item(s)</Badge>
+            <Badge className="border bg-white">{favorites.length} saved item(s)</Badge>
+            <Badge className="border bg-white">Visibility: moderation-policy filtered</Badge>
+          </div>
         </CardContent>
       </Card>
 
@@ -249,7 +266,7 @@ export default function SocialContentPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Accessible content board</CardTitle>
+          <CardTitle>Filtered visible items</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {items.map((item) => (
@@ -257,13 +274,14 @@ export default function SocialContentPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-medium">{item.title}</p>
                 <Badge>{item.kind}</Badge>
-                <Badge className="border bg-white">{item.topicCategory}</Badge>
-                <Badge className="border bg-white">{item.destinationCity}</Badge>
+                <Badge className="border bg-white">topic: {item.topicCategory}</Badge>
+                <Badge className="border bg-white">city: {item.destinationCity}</Badge>
                 {item.rating ? <Badge className="bg-slate-200">Rating {item.rating}/5</Badge> : null}
+                <Badge className="border bg-white">moderation: {item.moderationState}</Badge>
               </div>
               <p className="mt-1">{item.body}</p>
               <p className="text-xs text-muted-foreground">
-                by {item.author.fullName} · state: {item.state} · moderation: {item.moderationState}
+                by {item.author.fullName} · visibility state: {item.state}
                 {item.placeContext ? ` · place: ${item.placeContext.label}` : ''}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -286,7 +304,7 @@ export default function SocialContentPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>My saved favorites</CardTitle>
+          <CardTitle>Saved favorites</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
           {favorites.map((favorite) => (
