@@ -3,10 +3,24 @@ import type { Route } from 'next';
 
 import { ShellHeaderBlock, ShellKpiRow, ShellSectionPanel } from '@/components/shell/shell-primitives';
 
-const topLayerLinks = [
-  { href: '/student/dashboard?userId=student-1', label: 'Institutional Core', emphasis: 'primary' as const },
-  { href: '/social/profile?userId=student-1', label: 'Social Support Layer', emphasis: 'secondary' as const }
-];
+function getTopLayerLinks(role: 'student' | 'coordinator' | 'administrator') {
+  const institutionalHref =
+    role === 'coordinator'
+      ? '/coordinator/review-queue?userId=coordinator-1'
+      : role === 'administrator'
+        ? '/admin?userId=admin-1'
+        : '/student/dashboard?userId=student-1';
+
+  const links: { href: string; label: string; emphasis: 'primary' | 'secondary' }[] = [
+    { href: institutionalHref, label: 'Institutional Core', emphasis: 'primary' }
+  ];
+
+  if (role === 'student') {
+    links.push({ href: '/social/profile?userId=student-1', label: 'Social Support Layer', emphasis: 'secondary' });
+  }
+
+  return links;
+}
 
 const studentLinkGroups = [
   {
@@ -64,6 +78,7 @@ export function AppShell({
 }) {
   const groups =
     role === 'student' ? studentLinkGroups : role === 'coordinator' ? coordinatorLinkGroups : adminLinkGroups;
+  const topLayerLinks = getTopLayerLinks(role);
 
   return (
     <div className="min-h-screen bg-slate-100">
