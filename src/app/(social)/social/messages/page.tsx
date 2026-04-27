@@ -90,16 +90,20 @@ export default function SocialMessagesPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Accepted-Connection Messaging (WF-011)</CardTitle>
+          <CardTitle>Messages · eligible connections → thread</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {error ? <ErrorState message={error} /> : null}
-          <p>Messaging is enabled only for accepted connections. Blocked or non-accepted pairs are denied by backend guards.</p>
+          <p className="text-muted-foreground">Messaging is visible only for accepted connections with permitted thread access. Visibility and moderation guards are enforced by backend policy.</p>
+          <div className="flex flex-wrap gap-2">
+            <Badge>{accepted.length} message-enabled connection(s)</Badge>
+            <Badge className="border bg-white">Visibility: accepted + permitted only</Badge>
+          </div>
           <div className="flex flex-wrap gap-2">
             {accepted.map((connection) => (
               <Button key={connection.id} variant={selectedConnectionId === connection.id ? 'default' : 'outline'} onClick={() => setSelectedConnectionId(connection.id)}>
                 {connection.requesterUserId === userId ? connection.recipientUser.fullName : connection.requesterUser.fullName}
-                <Badge className="ml-2">{connection.state}</Badge>
+                <Badge className="ml-2">eligible</Badge>
               </Button>
             ))}
           </div>
@@ -109,7 +113,7 @@ export default function SocialMessagesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Thread</CardTitle>
+          <CardTitle>Thread detail</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="max-h-96 space-y-1 overflow-auto rounded border p-2 text-sm">

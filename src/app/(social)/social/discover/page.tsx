@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,8 @@ export default function SocialDiscoverPage() {
     headline: string | null;
     destinationCity: string | null;
     hostInstitution: string | null;
+    mobilityStage: string | null;
+    directContactExposed: boolean;
   };
   type ConnectionItem = {
     id: string;
@@ -33,6 +35,8 @@ export default function SocialDiscoverPage() {
   const [city, setCity] = useState('');
   const [stage, setStage] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const acceptedCount = useMemo(() => connections.filter((connection) => connection.state === 'accepted').length, [connections]);
 
   async function load() {
     const discovery = await fetch(
@@ -78,13 +82,21 @@ export default function SocialDiscoverPage() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Student Discovery and Connection Lifecycle (WF-010)</CardTitle>
+          <CardTitle>Discover students · filter → results → request</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-4">
-          <Input placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
-          <Input placeholder="Mobility stage" value={stage} onChange={(e) => setStage(e.target.value)} />
-          <Button onClick={load}>Apply filters</Button>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground">Only profiles allowed by student consent and moderation visibility are shown here. Backend enforcement is unchanged.</p>
+          <div className="grid gap-2 md:grid-cols-4">
+            <Input placeholder="Search name or interests" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+            <Input placeholder="Mobility stage" value={stage} onChange={(e) => setStage(e.target.value)} />
+            <Button onClick={load}>Apply filters</Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>{results.length} discoverable profile(s)</Badge>
+            <Badge className="border bg-white">{acceptedCount} accepted connection(s)</Badge>
+            <Badge className="border bg-white">Visibility: policy-filtered only</Badge>
+          </div>
         </CardContent>
       </Card>
 
@@ -92,14 +104,20 @@ export default function SocialDiscoverPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Discoverable students</CardTitle>
+          <CardTitle>Filtered student results</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {results.map((result) => (
-            <div key={result.id} className="rounded border p-2 text-sm">
-              <p className="font-medium">{result.studentName}</p>
-              <p>{result.headline || 'No headline visible'}</p>
-              <p>{result.destinationCity || 'City hidden'} · {result.hostInstitution || 'Institution hidden'}</p>
+            <div key={result.id} className="rounded border p-3 text-sm">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <p className="font-medium">{result.studentName}</p>
+                <Badge className="border bg-white">{result.mobilityStage || 'Mobility stage hidden'}</Badge>
+                <Badge className="border bg-white">{result.directContactExposed ? 'Direct contact visible' : 'Direct contact hidden'}</Badge>
+              </div>
+              <p>{result.headline || 'Headline hidden by profile visibility settings'}</p>
+              <p className="text-muted-foreground">
+                {result.destinationCity || 'City hidden'} · {result.hostInstitution || 'Institution hidden'}
+              </p>
               <Button className="mt-2" onClick={() => connect(result.id)}>
                 Send request
               </Button>
@@ -111,7 +129,7 @@ export default function SocialDiscoverPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>My connections</CardTitle>
+          <CardTitle>Connection lifecycle</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {connections.map((connection) => {
