@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ErrorState } from '@/components/states/error-state';
@@ -202,7 +203,10 @@ export default function SocialMapPage() {
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/social/content/${selected.id}?userId=${userId}`}
-                      className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                      className={cn(
+                        'inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50',
+                        'bg-primary text-primary-foreground hover:opacity-90'
+                      )}
                     >
                       Open detail
                     </Link>
