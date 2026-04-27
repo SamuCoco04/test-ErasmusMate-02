@@ -21,7 +21,16 @@ export function resolveWorkflowTone(state?: string | null): WorkflowTone {
     return 'overdue';
   }
 
-  if (value.includes('approved') || value.includes('accepted') || value.includes('resolved') || value.includes('cleared')) {
+  if (
+    value.includes('approved') ||
+    value.includes('accepted') ||
+    value.includes('resolved') ||
+    value.includes('cleared') ||
+    value.includes('fulfilled') ||
+    value.includes('completed') ||
+    value.includes('closed') ||
+    value === 'active'
+  ) {
     return 'approved';
   }
 
@@ -29,7 +38,16 @@ export function resolveWorkflowTone(state?: string | null): WorkflowTone {
     return 'flagged';
   }
 
-  if (value.includes('pending') || value.includes('review') || value.includes('draft') || value.includes('reopen') || value.includes('submitted')) {
+  if (
+    value.includes('pending') ||
+    value.includes('review') ||
+    value.includes('draft') ||
+    value.includes('reopen') ||
+    value.includes('submitted') ||
+    value.includes('reported') ||
+    value.includes('upcoming') ||
+    value.includes('terminated')
+  ) {
     return 'pending';
   }
 

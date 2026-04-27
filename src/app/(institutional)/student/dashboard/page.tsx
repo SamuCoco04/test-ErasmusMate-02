@@ -9,7 +9,8 @@ import {
   DashboardHero,
   DashboardKpiRow,
   DashboardSection,
-  WorkflowStateBadge
+  WorkflowStateBadge,
+  resolveWorkflowTone
 } from '@/components/shell/role-dashboard-primitives';
 
 const MOBILITY_ID = 'mobility-1';
@@ -95,7 +96,7 @@ export default function StudentDashboardPage() {
         title: `Upcoming obligations (${data.dashboard.summary.upcomingDeadlines})`,
         hint: 'Deadline-sensitive procedures and due actions for the current mobility phase.',
         href: `/student/deadlines?userId=${userId}`,
-        state: data.dashboard.summary.upcomingDeadlines > 0 ? 'overdue' : 'approved'
+        state: data.dashboard.summary.upcomingDeadlines > 0 ? 'pending' : 'approved'
       }
     ];
   }, [data, userId]);
@@ -143,13 +144,13 @@ export default function StudentDashboardPage() {
                 label: 'Deadlines',
                 value: `${data.dashboard.summary.upcomingDeadlines}`,
                 supporting: 'Pending obligations in current mobility phase',
-                tone: data.dashboard.summary.upcomingDeadlines > 0 ? 'overdue' : 'approved'
+                tone: data.dashboard.summary.upcomingDeadlines > 0 ? 'pending' : 'approved'
               },
               {
                 label: 'Mobility state',
                 value: data.dashboard.mobilityRecord.state,
                 supporting: 'Current record lifecycle state',
-                tone: 'pending'
+                tone: resolveWorkflowTone(data.dashboard.mobilityRecord.state)
               }
             ]}
           />

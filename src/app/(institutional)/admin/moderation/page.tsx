@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,26 +38,30 @@ export default function AdminModerationPage() {
 
   const selected = queue.find((item) => item.id === selectedCaseId) || null;
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null);
-    const response = await fetch(`/api/admin/moderation?userId=${userId}`);
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || 'Failed to load moderation queue');
-      return;
+    try {
+      const response = await fetch(`/api/admin/moderation?userId=${userId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to load moderation queue');
+        return;
+      }
+      const newQueue: ModerationCase[] = data.queue || [];
+      setQueue(newQueue);
+      if (caseIdFromQuery && newQueue.some((item) => item.id === caseIdFromQuery)) {
+        setSelectedCaseId(caseIdFromQuery);
+      } else {
+        setSelectedCaseId((prev) => prev || (newQueue.length ? newQueue[0].id : ''));
+      }
+    } catch {
+      setError('Failed to load moderation queue');
     }
-    setQueue(data.queue || []);
-    if (caseIdFromQuery && data.queue?.some((item: ModerationCase) => item.id === caseIdFromQuery)) {
-      setSelectedCaseId(caseIdFromQuery);
-      return;
-    }
-    if (!selectedCaseId && data.queue?.length) setSelectedCaseId(data.queue[0].id);
-  }
+  }, [userId, caseIdFromQuery]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, caseIdFromQuery]);
+  }, [load]);
 
   async function apply(action: (typeof ACTIONS)[number]) {
     if (!selectedCaseId) return;
@@ -125,8 +129,10 @@ export default function AdminModerationPage() {
             {queue.map((item) => (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => setSelectedCaseId(item.id)}
-                className={`w-full rounded border p-2 text-left ${selectedCaseId === item.id ? 'border-blue-600 bg-blue-50/50' : ''}`}
+                aria-pressed={selectedCaseId === item.id}
+                className={`w-full rounded border p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${selectedCaseId === item.id ? 'border-blue-600 bg-blue-50/50' : ''}`}
               >
                 <p className="font-medium">{item.targetType} · {item.id}</p>
                 <div className="mt-1 flex flex-wrap gap-2">

@@ -90,7 +90,10 @@ export default function CoordinatorDashboardPage() {
     [deadlines]
   );
 
-  const pendingQueue = queue.filter((item) => resolveWorkflowTone(item.state) === 'pending' || resolveWorkflowTone(item.state) === 'flagged');
+  const pendingQueue = queue.filter((item) => {
+    const tone = resolveWorkflowTone(item.state);
+    return tone === 'pending' || tone === 'flagged';
+  });
   const overdueDeadlines = deadlines.filter((item) => resolveWorkflowTone(item.effectiveState) === 'overdue').length;
 
   return (
