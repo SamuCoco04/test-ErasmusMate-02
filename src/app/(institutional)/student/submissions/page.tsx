@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { LoadingState } from '@/components/states/loading-state';
+import { SuccessState } from '@/components/states/success-state';
+import { EntityListButton, InstitutionalPageTemplate } from '@/components/institutional/page-template';
 
 type Submission = {
   id: string;
@@ -35,6 +36,7 @@ export default function StudentSubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [audit, setAudit] = useState<{ id: string; actionType: string; createdAt: string }[]>([]);
 
   async function load() {
@@ -65,14 +67,13 @@ export default function StudentSubmissionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  const actionables = useMemo(
-    () => submissions.filter((s) => ['DRAFT', 'REJECTED', 'REOPENED'].includes(s.state)),
-    [submissions]
-  );
+  const actionables = useMemo(() => submissions.filter((s) => ['DRAFT', 'REJECTED', 'REOPENED'].includes(s.state)), [submissions]);
 
   async function createDraft() {
     if (!selectedProcedure) return;
     setSaving(true);
+    setError(null);
+    setSuccess(null);
     try {
       const response = await fetch('/api/submissions', {
         method: 'POST',
@@ -81,6 +82,7 @@ export default function StudentSubmissionsPage() {
       });
       const data = await response.json();
       if (!response.ok) setError(data.error || 'Failed to create draft');
+      else setSuccess('Draft created and added to your submission list.');
       await load();
     } catch {
       setError('Failed to create draft');
@@ -91,6 +93,8 @@ export default function StudentSubmissionsPage() {
 
   async function transition(submissionId: string, action: 'submit' | 'resubmit') {
     setSaving(true);
+    setError(null);
+    setSuccess(null);
     try {
       const response = await fetch(`/api/submissions/${submissionId}/transition`, {
         method: 'PATCH',
@@ -99,6 +103,7 @@ export default function StudentSubmissionsPage() {
       });
       const data = await response.json();
       if (!response.ok) setError(data.error || 'Transition failed');
+      else setSuccess(action === 'submit' ? 'Submission sent to coordinator review.' : 'Submission resubmitted successfully.');
       setAudit(data.audit || []);
       setRationale('');
       await load();
@@ -110,13 +115,18 @@ export default function StudentSubmissionsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Student Submission Workflow (WF-003)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p>Create drafts, submit, and resubmit after rejection/reopen.</p>
+    <InstitutionalPageTemplate
+      title="Student Submission Workflow"
+      subtitle="Create procedure drafts and progress them through submission and resubmission states."
+      contextSummary={
+        <div className="grid gap-2 sm:grid-cols-3 text-sm">
+          <div className="rounded border bg-slate-50 p-2">Total submissions: <strong>{submissions.length}</strong></div>
+          <div className="rounded border bg-amber-50 p-2">Actionable now: <strong>{actionables.length}</strong></div>
+          <div className="rounded border bg-slate-50 p-2">Workflow: <strong>WF-003</strong></div>
+        </div>
+      }
+      actionsBar={
+        <div className="space-y-2 text-sm">
           <div className="grid gap-2 md:grid-cols-[1fr_auto]">
             <Input
               value={selectedProcedure}
@@ -124,93 +134,52 @@ export default function StudentSubmissionsPage() {
               placeholder="Procedure ID"
               list="procedure-options"
             />
-            <Button onClick={createDraft} disabled={saving || !selectedProcedure}>
-              Create Draft
-            </Button>
+            <Button onClick={createDraft} disabled={saving || !selectedProcedure}>Create Draft</Button>
             <datalist id="procedure-options">
               {procedures.map((procedure) => (
-                <option key={procedure.id} value={procedure.id}>
-                  {procedure.title}
-                </option>
+                <option key={procedure.id} value={procedure.id}>{procedure.title}</option>
               ))}
             </datalist>
           </div>
-          <Textarea
-            value={rationale}
-            onChange={(event) => setRationale(event.target.value)}
-            placeholder="Optional rationale (used for resubmit note)"
-          />
-        </CardContent>
-      </Card>
+          <Textarea value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Optional rationale for resubmit" />
+        </div>
+      }
+      primaryRegion={
+        <div className="space-y-3 text-sm">
+          {loading ? <LoadingState label="Loading submissions..." /> : null}
+          {error ? <ErrorState message={error} /> : null}
+          {success ? <SuccessState message={success} /> : null}
+          {!loading && !submissions.length ? <EmptyState title="No submissions yet" hint="Create your first draft above." /> : null}
 
-      {loading ? <LoadingState /> : null}
-      {error ? <ErrorState message={error} /> : null}
-
-      {!loading && !submissions.length ? <EmptyState title="No submissions yet" hint="Create your first draft above." /> : null}
-
-      {audit.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Latest audit events</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            {audit.map((item) => (
-              <p key={item.id}>
-                {new Date(item.createdAt).toLocaleString()} · {item.actionType}
-              </p>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="space-y-3">
-        {submissions.map((submission) => (
-          <Card key={submission.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
-                <span>{submission.procedureDefinition.title}</span>
-                <Badge>{submission.state}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="font-mono text-xs text-muted-foreground">ID: {submission.id}</p>
-              {submission.rejectionRationale ? <p>Rejection rationale: {submission.rejectionRationale}</p> : null}
-              {submission.reopeningRationale ? <p>Reopening rationale: {submission.reopeningRationale}</p> : null}
-
-              <div className="flex gap-2">
-                {submission.state === 'DRAFT' ? (
-                  <Button disabled={saving} onClick={() => transition(submission.id, 'submit')}>
-                    Submit
-                  </Button>
-                ) : null}
-                {['REJECTED', 'REOPENED'].includes(submission.state) ? (
-                  <Button disabled={saving} onClick={() => transition(submission.id, 'resubmit')}>
-                    Resubmit
-                  </Button>
-                ) : null}
-              </div>
-
-              {submission.events?.length ? (
-                <div className="rounded border bg-slate-50 p-2 text-xs">
-                  <p className="mb-1 font-medium">Recent transitions</p>
-                  <ul className="space-y-1">
-                    {submission.events.map((event) => (
-                      <li key={event.id}>
-                        {new Date(event.createdAt).toLocaleString()} → {event.toState}
-                        {event.rationale ? ` (${event.rationale})` : ''}
-                      </li>
-                    ))}
-                  </ul>
+          {submissions.map((submission) => (
+            <EntityListButton key={submission.id}>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium">{submission.procedureDefinition.title}</p>
+                  <Badge>{submission.state}</Badge>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {!loading && actionables.length === 0 ? (
-        <EmptyState title="No actionable items" hint="Wait for coordinator decisions or create a new draft." />
-      ) : null}
-    </div>
+                <p className="font-mono text-xs text-muted-foreground">ID: {submission.id}</p>
+                {submission.rejectionRationale ? <p className="text-xs">Rejection: {submission.rejectionRationale}</p> : null}
+                {submission.reopeningRationale ? <p className="text-xs">Reopen note: {submission.reopeningRationale}</p> : null}
+                <div className="flex flex-wrap gap-2">
+                  {submission.state === 'DRAFT' ? <Button disabled={saving} onClick={() => transition(submission.id, 'submit')}>Submit</Button> : null}
+                  {['REJECTED', 'REOPENED'].includes(submission.state) ? (
+                    <Button disabled={saving} onClick={() => transition(submission.id, 'resubmit')}>Resubmit</Button>
+                  ) : null}
+                </div>
+              </div>
+            </EntityListButton>
+          ))}
+        </div>
+      }
+      activityRegion={
+        <div className="space-y-2 text-xs text-muted-foreground">
+          {!audit.length ? <EmptyState title="No recent audit events" hint="Actions performed in this session appear here." /> : null}
+          {audit.map((item) => (
+            <p key={item.id}>{new Date(item.createdAt).toLocaleString()} · {item.actionType}</p>
+          ))}
+        </div>
+      }
+    />
   );
 }

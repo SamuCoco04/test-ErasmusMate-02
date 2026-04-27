@@ -4,17 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/states/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { LoadingState } from '@/components/states/loading-state';
+import { SuccessState } from '@/components/states/success-state';
+import { EntityListButton, InstitutionalPageTemplate } from '@/components/institutional/page-template';
 
 type QueueAgreement = {
   id: string;
   state: string;
-  submittedAt?: string | null;
   student: { fullName: string };
   mobilityRecord: { id: string; destinationCity: string };
   rows: {
@@ -32,12 +32,6 @@ type QueueAgreement = {
   }[];
 };
 
-const statusTone = {
-  IN_REVIEW: 'border-amber-200 bg-amber-50 text-amber-800',
-  APPROVED: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  DENIED: 'border-rose-200 bg-rose-50 text-rose-800'
-} as const;
-
 export default function CoordinatorLearningAgreementPage() {
   const params = useSearchParams();
   const userId = params.get('userId') || 'coordinator-1';
@@ -51,30 +45,19 @@ export default function CoordinatorLearningAgreementPage() {
   const [reopenRationale, setReopenRationale] = useState('');
   const [reopening, setReopening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   async function load() {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const response = await fetch(`/api/learning-agreements?role=coordinator&userId=${userId}`);
       const data = await response.json();
-      if (!response.ok) {
-        setError(data.error || 'Failed to load queue');
-      } else {
-        setQueue(data.queue || []);
-        setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null);
-      }
-    } catch {
-      setError('Failed to load queue');
-    } finally {
-      setLoading(false);
-    }
+      if (!response.ok) setError(data.error || 'Failed to load queue');
+      else { setQueue(data.queue || []); setSelectedId((prev) => prev ?? data.queue?.[0]?.id ?? null); }
+    } catch { setError('Failed to load queue'); } finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  useEffect(() => { load(); }, [userId]);
 
   const selected = queue.find((item) => item.id === selectedId) ?? null;
   const stats = useMemo(() => {
@@ -88,216 +71,107 @@ export default function CoordinatorLearningAgreementPage() {
 
   async function decide(rowId: string, decision: 'APPROVED' | 'DENIED') {
     if (!selected) return;
-    setSavingRow(rowId);
-    setError(null);
+    setSavingRow(rowId); setError(null); setSuccess(null);
     try {
       const response = await fetch(`/api/learning-agreements/${selected.id}/rows/${rowId}/decision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          decision,
-          rationale: rationaleByRow[rowId] || undefined,
-          ...(rowId in gradeByRow ? { grade: gradeByRow[rowId] || null } : {})
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, decision, rationale: rationaleByRow[rowId] || undefined, ...(rowId in gradeByRow ? { grade: gradeByRow[rowId] || null } : {}) })
       });
       const data = await response.json();
-      if (!response.ok) {
-        setError(data.error || 'Decision failed');
-      } else {
-        setRationaleByRow((prev) => ({ ...prev, [rowId]: '' }));
-        await load();
-      }
-    } catch {
-      setError('Decision failed');
-    } finally {
-      setSavingRow(null);
-    }
+      if (!response.ok) setError(data.error || 'Decision failed');
+      else { setSuccess(`Row ${decision === 'APPROVED' ? 'approved' : 'denied'}.`); setRationaleByRow((prev) => ({ ...prev, [rowId]: '' })); await load(); }
+    } catch { setError('Decision failed'); } finally { setSavingRow(null); }
   }
 
   async function saveGrade(rowId: string) {
     if (!selected) return;
-    setSavingRow(rowId);
-    setError(null);
+    setSavingRow(rowId); setError(null); setSuccess(null);
     try {
       const response = await fetch(`/api/learning-agreements/${selected.id}/rows/${rowId}/grade`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          grade: rowId in gradeByRow ? gradeByRow[rowId] || null : null
-        })
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, grade: rowId in gradeByRow ? gradeByRow[rowId] || null : null })
       });
       const data = await response.json();
-      if (!response.ok) {
-        setError(data.error || 'Grade update failed');
-      } else {
-        await load();
-      }
-    } catch {
-      setError('Grade update failed');
-    } finally {
-      setSavingRow(null);
-    }
+      if (!response.ok) setError(data.error || 'Grade update failed');
+      else { setSuccess('Grade saved.'); await load(); }
+    } catch { setError('Grade update failed'); } finally { setSavingRow(null); }
   }
 
   async function reopenSelected() {
     if (!selected) return;
-    setReopening(true);
-    setError(null);
+    setReopening(true); setError(null); setSuccess(null);
     try {
       const response = await fetch(`/api/learning-agreements/${selected.id}/reopen`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          rationale: reopenRationale
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, rationale: reopenRationale })
       });
       const data = await response.json();
-      if (!response.ok) {
-        setError(data.error || 'Failed to reopen agreement');
-      } else {
-        setReopenRationale('');
-        await load();
-      }
-    } catch {
-      setError('Failed to reopen agreement');
-    } finally {
-      setReopening(false);
-    }
+      if (!response.ok) setError(data.error || 'Failed to reopen agreement');
+      else { setSuccess('Agreement reopened for student revision.'); setReopenRationale(''); await load(); }
+    } catch { setError('Failed to reopen agreement'); } finally { setReopening(false); }
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Learning Agreement Review</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Institutional review workspace with queue visibility, row-level decisions, rationale tracking, explicit reopen controls, and coordinator-only grade management.
-          </p>
-        </CardHeader>
-      </Card>
-
-      {loading ? <LoadingState /> : null}
-      {error ? <ErrorState message={error} /> : null}
-      {!loading && !queue.length ? <EmptyState title="No Learning Agreements in queue" hint="Submitted agreements assigned to you will appear here." /> : null}
-
-      {queue.length ? (
-        <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Assigned Queue ({queue.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {queue.map((item) => {
-                const pending = item.rows.filter((row) => row.status === 'IN_REVIEW').length;
-                const denied = item.rows.filter((row) => row.status === 'DENIED').length;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setSelectedId(item.id)}
-                    className={`w-full rounded border p-3 text-left transition ${selectedId === item.id ? 'border-blue-600 bg-blue-50' : 'hover:bg-slate-50'}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium">{item.student.fullName}</p>
-                      <Badge>{item.state}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Mobility {item.mobilityRecord.id} · {item.mobilityRecord.destinationCity}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Pending {pending} · Denied {denied} · Total {item.rows.length}</p>
-                  </button>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Agreement Detail Workspace</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {selected ? (
-                <>
-                  <div className="grid gap-2 md:grid-cols-4">
-                    <div className="rounded border bg-slate-50 p-2 text-xs">Agreement: {selected.id}</div>
-                    <div className="rounded border bg-emerald-50 p-2 text-xs">Approved: {stats.approved}</div>
-                    <div className="rounded border bg-rose-50 p-2 text-xs">Denied: {stats.denied}</div>
-                    <div className="rounded border bg-amber-50 p-2 text-xs">Pending: {stats.pending}</div>
-                  </div>
-                  <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                    Grade is optional and coordinator-controlled. It supports later lifecycle recognition and does not govern initial equivalence approval.
-                  </div>
-
-                  {['ACCEPTED', 'PARTIALLY_APPROVED'].includes(selected.state) ? (
-                    <div className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
-                      <p className="text-xs font-medium text-amber-900">Reopen agreement for controlled revision</p>
-                      <Textarea
-                        value={reopenRationale}
-                        onChange={(event) => setReopenRationale(event.target.value)}
-                        placeholder="Reopen rationale (required)"
-                      />
-                      <Button
-                        disabled={reopening || !reopenRationale.trim()}
-                        variant="outline"
-                        onClick={reopenSelected}
-                      >
-                        Reopen agreement
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  <div className="space-y-2">
-                    {selected.rows.map((row) => (
-                      <div key={row.id} className="rounded border p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-medium">{row.homeCourseCode} → {row.destinationCourseCode}</p>
-                          <Badge className={statusTone[row.status]}>{row.status.replace('_', ' ')}</Badge>
-                        </div>
-                        <p>{row.homeCourseName} ⇄ {row.destinationCourseName}</p>
-                        <p className="text-xs text-muted-foreground">ECTS {row.ects} · {row.semester} · Revision {row.revision}</p>
-                        <p className="text-xs text-muted-foreground">Current grade: {row.grade || 'Not set'}</p>
-                        {row.decisionRationale ? (
-                          <p className="mt-1 rounded border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">Previous rationale: {row.decisionRationale}</p>
-                        ) : null}
-
-                        <div className="mt-2 space-y-2">
-                          {row.status !== 'DENIED' ? (
-                            <div className="flex flex-wrap gap-2">
-                              <Input
-                                placeholder="Optional coordinator-only grade"
-                                value={gradeByRow[row.id] ?? row.grade ?? ''}
-                                onChange={(event) => setGradeByRow((prev) => ({ ...prev, [row.id]: event.target.value }))}
-                              />
-                              <Button variant="outline" disabled={savingRow === row.id} onClick={() => saveGrade(row.id)}>
-                                Save grade
-                              </Button>
-                            </div>
-                          ) : null}
-                          {row.status === 'IN_REVIEW' ? (
-                            <>
-                            <Textarea
-                              value={rationaleByRow[row.id] ?? ''}
-                              onChange={(event) => setRationaleByRow((prev) => ({ ...prev, [row.id]: event.target.value }))}
-                              placeholder="Rationale (required for deny)"
-                            />
-                            <div className="flex flex-wrap gap-2">
-                              <Button disabled={savingRow === row.id} onClick={() => decide(row.id, 'APPROVED')}>Approve row</Button>
-                              <Button disabled={savingRow === row.id} variant="destructive" onClick={() => decide(row.id, 'DENIED')}>Deny row</Button>
-                            </div>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <EmptyState title="Select an agreement" hint="Choose an agreement from the queue to review row-level decisions." />
-              )}
-            </CardContent>
-          </Card>
+    <InstitutionalPageTemplate
+      title="Learning Agreement Review"
+      subtitle="Coordinator workspace for queue triage, row decisions, grading, and controlled reopening."
+      contextSummary={<p className="text-sm">Queue size: <strong>{queue.length}</strong></p>}
+      actionsBar={
+        selected ? (
+          <div className="grid gap-2 md:grid-cols-4 text-sm">
+            <div className="rounded border bg-slate-50 p-2">Agreement: {selected.id}</div>
+            <div className="rounded border bg-emerald-50 p-2">Approved: {stats.approved}</div>
+            <div className="rounded border bg-rose-50 p-2">Denied: {stats.denied}</div>
+            <div className="rounded border bg-amber-50 p-2">Pending: {stats.pending}</div>
+          </div>
+        ) : <EmptyState title="Select an agreement" />
+      }
+      primaryRegion={
+        <div className="space-y-2 text-sm">
+          {loading ? <LoadingState label="Loading learning agreement queue..." /> : null}
+          {error ? <ErrorState message={error} /> : null}
+          {success ? <SuccessState message={success} /> : null}
+          {!loading && !queue.length ? <EmptyState title="No Learning Agreements in queue" /> : null}
+          {queue.map((item) => (
+            <EntityListButton key={item.id} selected={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
+              <div className="flex items-center justify-between"><p className="font-medium">{item.student.fullName}</p><Badge>{item.state}</Badge></div>
+              <p className="text-xs text-muted-foreground">Mobility {item.mobilityRecord.id} · {item.mobilityRecord.destinationCity}</p>
+            </EntityListButton>
+          ))}
         </div>
-      ) : null}
-    </div>
+      }
+      activityRegion={
+        selected ? (
+          <div className="space-y-2 text-sm">
+            {['ACCEPTED', 'PARTIALLY_APPROVED'].includes(selected.state) ? (
+              <div className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
+                <Textarea value={reopenRationale} onChange={(event) => setReopenRationale(event.target.value)} placeholder="Reopen rationale (required)" />
+                <Button disabled={reopening || !reopenRationale.trim()} variant="outline" onClick={reopenSelected}>Reopen agreement</Button>
+              </div>
+            ) : null}
+            {selected.rows.map((row) => (
+              <div key={row.id} className="rounded border p-3">
+                <div className="flex items-center justify-between"><p className="font-medium">{row.homeCourseCode} → {row.destinationCourseCode}</p><Badge>{row.status.replace('_', ' ')}</Badge></div>
+                <p>{row.homeCourseName} ⇄ {row.destinationCourseName}</p>
+                <p className="text-xs text-muted-foreground">ECTS {row.ects} · {row.semester} · Revision {row.revision}</p>
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Input placeholder="Optional grade" value={gradeByRow[row.id] ?? row.grade ?? ''} onChange={(event) => setGradeByRow((prev) => ({ ...prev, [row.id]: event.target.value }))} />
+                    <Button variant="outline" disabled={savingRow === row.id} onClick={() => saveGrade(row.id)}>Save grade</Button>
+                  </div>
+                  {row.status === 'IN_REVIEW' ? (
+                    <>
+                      <Textarea value={rationaleByRow[row.id] ?? ''} onChange={(event) => setRationaleByRow((prev) => ({ ...prev, [row.id]: event.target.value }))} placeholder="Rationale (required for deny)" />
+                      <div className="flex gap-2">
+                        <Button disabled={savingRow === row.id} onClick={() => decide(row.id, 'APPROVED')}>Approve row</Button>
+                        <Button disabled={savingRow === row.id} variant="destructive" onClick={() => decide(row.id, 'DENIED')}>Deny row</Button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <EmptyState title="Select an agreement" hint="Choose a queue item to review rows." />
+      }
+    />
   );
 }
