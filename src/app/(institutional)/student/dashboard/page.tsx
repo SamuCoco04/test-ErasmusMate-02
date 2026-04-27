@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { LoadingState } from '@/components/states/loading-state';
 import { ErrorState } from '@/components/states/error-state';
+import { LoadingState } from '@/components/states/loading-state';
+import {
+  ActionRequiredRail,
+  DashboardHero,
+  DashboardKpiRow,
+  DashboardSection,
+  WorkflowStateBadge
+} from '@/components/shell/role-dashboard-primitives';
 
 const MOBILITY_ID = 'mobility-1';
 
@@ -67,94 +72,114 @@ export default function StudentDashboardPage() {
     load();
   }, [userId]);
 
+  const actionRailItems = useMemo(() => {
+    if (!data) return [];
+
+    return [
+      {
+        id: 'submissions',
+        title: `Submissions needing follow-up (${data.dashboard.summary.pendingSubmissions})`,
+        hint: 'Review draft, rejected, or reopened submissions in your institutional flow.',
+        href: `/student/submissions?userId=${userId}`,
+        state: data.dashboard.summary.pendingSubmissions > 0 ? 'pending' : 'approved'
+      },
+      {
+        id: 'exceptions',
+        title: `Open exceptions (${data.dashboard.summary.exceptionsPending})`,
+        hint: 'Track unresolved exception decisions that can block your mobility lifecycle.',
+        href: `/student/exceptions?userId=${userId}`,
+        state: data.dashboard.summary.exceptionsPending > 0 ? 'pending' : 'approved'
+      },
+      {
+        id: 'deadlines',
+        title: `Upcoming obligations (${data.dashboard.summary.upcomingDeadlines})`,
+        hint: 'Deadline-sensitive procedures and due actions for the current mobility phase.',
+        href: `/student/deadlines?userId=${userId}`,
+        state: data.dashboard.summary.upcomingDeadlines > 0 ? 'overdue' : 'approved'
+      }
+    ];
+  }, [data, userId]);
+
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Institutional Mobility Dashboard (WF-001 + WF-006)</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Mobility read model, applicability overview, deadline pressure and audit visibility.
-        </CardContent>
-      </Card>
-
       {loading ? <LoadingState /> : null}
       {error ? <ErrorState message={error} /> : null}
 
       {data ? (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Mobility record</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p>
-                <strong>Institution:</strong> {data.dashboard.mobilityRecord.institution.name}
-              </p>
-              <p>
-                <strong>Coordinator:</strong> {data.dashboard.mobilityRecord.coordinator.fullName}
-              </p>
-              <p>
-                <strong>Destination:</strong> {data.dashboard.mobilityRecord.destinationCity}
-              </p>
-              <p>
-                <strong>Type / Phase:</strong> {data.dashboard.mobilityRecord.mobilityType} / {data.dashboard.mobilityRecord.mobilityPhase}
-              </p>
-              <p>
-                <strong>Dates:</strong> {new Date(data.dashboard.mobilityRecord.mobilityStart).toLocaleDateString()} -{' '}
-                {new Date(data.dashboard.mobilityRecord.mobilityEnd).toLocaleDateString()}
-              </p>
-              <Badge>{data.dashboard.mobilityRecord.state}</Badge>
-            </CardContent>
-          </Card>
+          <DashboardHero
+            title="Student institutional dashboard"
+            description="Primary mobility context, workflow pressure indicators, and audit visibility for institutional actions."
+            badge={<WorkflowStateBadge state={data.dashboard.mobilityRecord.state} />}
+            context={
+              <div className="grid gap-3 text-sm md:grid-cols-2">
+                <p><span className="font-medium">Institution:</span> {data.dashboard.mobilityRecord.institution.name}</p>
+                <p><span className="font-medium">Coordinator:</span> {data.dashboard.mobilityRecord.coordinator.fullName}</p>
+                <p><span className="font-medium">Destination:</span> {data.dashboard.mobilityRecord.destinationCity}</p>
+                <p><span className="font-medium">Type / phase:</span> {data.dashboard.mobilityRecord.mobilityType} / {data.dashboard.mobilityRecord.mobilityPhase}</p>
+                <p className="md:col-span-2">
+                  <span className="font-medium">Dates:</span> {new Date(data.dashboard.mobilityRecord.mobilityStart).toLocaleDateString()} -{' '}
+                  {new Date(data.dashboard.mobilityRecord.mobilityEnd).toLocaleDateString()}
+                </p>
+              </div>
+            }
+          />
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Submissions</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">{data.dashboard.summary.pendingSubmissions} pending of {data.dashboard.summary.submissionsTotal}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Exceptions</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">{data.dashboard.summary.exceptionsPending} open of {data.dashboard.summary.exceptionsTotal}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Deadlines</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">{data.dashboard.summary.upcomingDeadlines} pending obligations</CardContent>
-            </Card>
+          <DashboardKpiRow
+            items={[
+              {
+                label: 'Submissions',
+                value: `${data.dashboard.summary.pendingSubmissions}/${data.dashboard.summary.submissionsTotal}`,
+                supporting: 'Pending of total procedural submissions',
+                tone: data.dashboard.summary.pendingSubmissions > 0 ? 'pending' : 'approved'
+              },
+              {
+                label: 'Exceptions',
+                value: `${data.dashboard.summary.exceptionsPending}/${data.dashboard.summary.exceptionsTotal}`,
+                supporting: 'Open exception requests in institutional review',
+                tone: data.dashboard.summary.exceptionsPending > 0 ? 'pending' : 'approved'
+              },
+              {
+                label: 'Deadlines',
+                value: `${data.dashboard.summary.upcomingDeadlines}`,
+                supporting: 'Pending obligations in current mobility phase',
+                tone: data.dashboard.summary.upcomingDeadlines > 0 ? 'overdue' : 'approved'
+              },
+              {
+                label: 'Mobility state',
+                value: data.dashboard.mobilityRecord.state,
+                supporting: 'Current record lifecycle state',
+                tone: 'pending'
+              }
+            ]}
+          />
+
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <ActionRequiredRail items={actionRailItems} emptyLabel="No institutional actions required right now." />
+
+            <DashboardSection title="Applicable procedures (REQ-018)">
+              <div className="space-y-2 text-sm">
+                {data.dashboard.procedures.map((procedure) => (
+                  <div key={procedure.id} className="rounded border p-2">
+                    <p className="font-medium">{procedure.title}</p>
+                    <p className="text-xs text-muted-foreground">Phase: {procedure.phase}</p>
+                  </div>
+                ))}
+              </div>
+            </DashboardSection>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Applicable procedures (REQ-018)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm">
-              {data.dashboard.procedures.map((procedure) => (
-                <p key={procedure.id}>
-                  <strong>{procedure.title}</strong> <span className="text-muted-foreground">({procedure.phase})</span>
-                </p>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Audit trail (critical actions)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-xs">
+          <DashboardSection title="Recent activity">
+            <div className="space-y-2 text-xs">
               {data.audit.map((event) => (
-                <p key={event.id}>
-                  {new Date(event.createdAt).toLocaleString()} · {event.actor.fullName} · {event.actionType}
-                  {event.newState ? ` -> ${event.newState}` : ''}
-                </p>
+                <div key={event.id} className="rounded border p-2">
+                  <p>{new Date(event.createdAt).toLocaleString()}</p>
+                  <p className="text-muted-foreground">{event.actor.fullName} · {event.actionType}</p>
+                  {event.newState ? <WorkflowStateBadge state={event.newState} className="mt-1" /> : null}
+                </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </DashboardSection>
         </>
       ) : null}
     </div>
