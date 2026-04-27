@@ -12,6 +12,13 @@ import { ErrorState } from '@/components/states/error-state';
 const KINDS = ['recommendation', 'tip', 'review', 'opinion'] as const;
 const TOPICS = ['accommodation', 'transport', 'bureaucracy', 'academics', 'daily_living'] as const;
 
+const VISIBILITY_COPY = {
+  mineOnly:
+    'Results include your authored items, including moderation-limited states except removed content. Moderation and visibility enforcement are unchanged; this page improves discoverability only.',
+  default:
+    'Results include only backend-visible items. Moderation and visibility enforcement are unchanged; this page improves discoverability only.',
+} as const;
+
 type Kind = (typeof KINDS)[number];
 
 type ContentItem = {

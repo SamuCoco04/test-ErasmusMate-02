@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ErrorState } from '@/components/states/error-state';
@@ -57,7 +58,7 @@ export default function SocialMapPage() {
   const [contentType, setContentType] = useState('');
   const [minRating, setMinRating] = useState('');
 
-  const selected = useMemo(() => items.find((item) => item.id === selectedItemId) || items[0] || null, [items, selectedItemId]);
+  const selected = useMemo(() => items.find((item) => item.id === selectedItemId) ?? null, [items, selectedItemId]);
   const handleSelect = useCallback((itemId: string) => setSelectedItemId(itemId), []);
 
   async function load() {
@@ -80,7 +81,7 @@ export default function SocialMapPage() {
     }
 
     setItems(itemsData.items || []);
-    setSelectedItemId((itemsData.items || [])[0]?.id ?? null);
+    setSelectedItemId(null);
 
     if (placesResponse.ok) setPlaces(placesData.places || []);
   }
