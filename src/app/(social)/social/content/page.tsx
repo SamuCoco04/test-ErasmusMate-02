@@ -183,7 +183,11 @@ export default function SocialContentPage() {
           <CardTitle>Content board · filter → visible list → detail actions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Results include only backend-visible items. Moderation and visibility enforcement are unchanged; this page improves discoverability only.</p>
+          <p className="text-sm text-muted-foreground">
+            {mineOnly
+              ? 'Results include your authored items, including moderation-limited states except removed content. Moderation and visibility enforcement are unchanged; this page improves discoverability only.'
+              : 'Results include only backend-visible items. Moderation and visibility enforcement are unchanged; this page improves discoverability only.'}
+          </p>
           <div className="grid gap-2 md:grid-cols-4">
             <Input placeholder="Search text" value={search} onChange={(e) => setSearch(e.target.value)} />
             <Input placeholder="City" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} />

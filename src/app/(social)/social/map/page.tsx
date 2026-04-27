@@ -57,7 +57,7 @@ export default function SocialMapPage() {
   const [contentType, setContentType] = useState('');
   const [minRating, setMinRating] = useState('');
 
-  const selected = useMemo(() => items.find((item) => item.id === selectedItemId) || items[0] || null, [items, selectedItemId]);
+  const selected = useMemo(() => items.find((item) => item.id === selectedItemId) ?? null, [items, selectedItemId]);
   const handleSelect = useCallback((itemId: string) => setSelectedItemId(itemId), []);
 
   async function load() {
@@ -80,7 +80,7 @@ export default function SocialMapPage() {
     }
 
     setItems(itemsData.items || []);
-    setSelectedItemId((itemsData.items || [])[0]?.id ?? null);
+    setSelectedItemId(null);
 
     if (placesResponse.ok) setPlaces(placesData.places || []);
   }
@@ -200,8 +200,11 @@ export default function SocialMapPage() {
                     <p className="text-xs text-muted-foreground">{selected.place.label} · {selected.place.city} · By {selected.author.fullName}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Link href={`/social/content/${selected.id}?userId=${userId}`}>
-                      <Button>Open detail</Button>
+                    <Link
+                      href={`/social/content/${selected.id}?userId=${userId}`}
+                      className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      Open detail
                     </Link>
                     <Button variant="outline" onClick={() => reportFromMap(selected.id)}>Report from map</Button>
                   </div>
